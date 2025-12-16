@@ -23,14 +23,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
       - name: Validate Sysmon XML files
         run: |
           echo "Validating Sysmon configuration XML syntax..."
-          for file in sysmon/sysmon-*.xml; do
-            echo "Checking $file..."
-            xmllint --noout "$file" && echo "  ✓ Valid XML" || exit 1
-          done
-          echo "All XML files are valid!"
+          if ls sysmon/sysmon-*.xml 1> /dev/null 2>&1; then
+            for file in sysmon/sysmon-*.xml; do
+              echo "Checking $file..."
+              xmllint --noout "$file" && echo "  ✓ Valid XML" || exit 1
+            done
+            echo "All XML files are valid!"
+          else
+            echo "No XML files found in sysmon/ directory"
+            ls -la sysmon/ || echo "sysmon directory not found"
+            exit 1
+          fi
 
   test-sysmon-configs:
     name: Test ${{ matrix.config }} Config
