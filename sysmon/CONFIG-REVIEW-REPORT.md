@@ -349,17 +349,20 @@ Tutte le configurazioni usano mask espanse per credential theft detection:
 
 ## Test Results Summary
 
-| Config | Base Events | Atomic Events | Detection Rate |
-|--------|-------------|---------------|----------------|
-| ws | 53 | 3090 | 95%+ |
-| srv | 64 | 1808 | 92%+ |
-| dc | 500 | 9425 | 98%+ |
-| sql | 47 | 1136 | 90%+ |
-| exch | 72 | 2507 | 93%+ |
-| iis | 53 | 1072 | 91%+ |
+| Config | Base Events | Atomic Events | Total | Detection Rate |
+|--------|-------------|---------------|-------|----------------|
+| ws | 883 | 3090 | 3973 | 95%+ |
+| srv | 801 | 1808 | 2609 | 92%+ |
+| dc | 4575 | 9425 | 14000 | 98%+ |
+| sql | 517 | 1136 | 1653 | 90%+ |
+| exch | 910 | 2507 | 3417 | 93%+ |
+| iis | 449 | 1072 | 1521 | 91%+ |
 
-**Note:** Atomic Events = eventi Sysmon generati durante test MITRE ATT&CK (T1059.001, T1082, T1057, T1087.001, T1018).
-DC genera più eventi perché monitora TUTTI i comandi discovery (anche ping, ipconfig) che sono insoliti su un DC.
+**Legenda:**
+- **Base Events** = eventi generati da `Test-SysmonDetection.ps1` (test leggero con simulazioni base)
+- **Atomic Events** = eventi generati da Atomic Red Team (test MITRE ATT&CK reali: T1059.001, T1082, T1057, T1087.001, T1018)
+
+**Note:** DC genera più eventi perché monitora TUTTI i comandi discovery (ping, ipconfig, netstat) che sono insoliti su un Domain Controller di produzione.
 
 **Update:** Workflow GitHub Actions eseguito con successo su TUTTE le 6 configurazioni (Run #20283730410).
 
