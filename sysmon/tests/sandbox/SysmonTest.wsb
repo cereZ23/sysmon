@@ -1,0 +1,15 @@
+<Configuration>
+  <VGpu>Disable</VGpu>
+  <Networking>Disable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\sysmon-repo\sysmon</HostFolder>
+      <SandboxFolder>C:\sysmon</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell -ExecutionPolicy Bypass -Command "Start-Sleep 5; Set-Location C:\sysmon\tests\sandbox; .\setup-sandbox.ps1 -ConfigType srv"</Command>
+  </LogonCommand>
+  <MemoryInMB>4096</MemoryInMB>
+</Configuration>
