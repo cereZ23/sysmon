@@ -14,11 +14,18 @@
 
 param(
     [Parameter(Mandatory=$false)]
+    [ValidateSet("ws", "srv", "dc", "sql", "exch", "iis")]
+    [string]$ConfigType = "srv",
+
+    [Parameter(Mandatory=$false)]
     [ValidateSet("All", "ProcessCreate", "FileCreate", "Registry", "Network", "Credential", "Injection")]
     [string]$TestCategory = "All",
 
     [Parameter(Mandatory=$false)]
     [switch]$DryRun,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$CI,
 
     [Parameter(Mandatory=$false)]
     [string]$LogPath = "C:\SysmonTests\Results"
@@ -464,7 +471,11 @@ if (-not $sysmonService -or $sysmonService.Status -ne 'Running') {
 }
 
 Write-Host "Sysmon Service: $($sysmonService.Name) - $($sysmonService.Status)" -ForegroundColor Green
+Write-Host "Config Type: $ConfigType" -ForegroundColor Cyan
 Write-Host "Test Mode: $(if($DryRun){'DRY RUN'}else{'LIVE'})" -ForegroundColor $(if($DryRun){'Yellow'}else{'Green'})
+if ($CI) {
+    Write-Host "CI Mode: Enabled" -ForegroundColor Cyan
+}
 
 # Run tests based on category
 switch ($TestCategory) {

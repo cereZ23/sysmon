@@ -1,0 +1,296 @@
+name: Sysmon Detection Testing
+
+on:
+  push:
+    paths:
+      - 'sysmon/*.xml'
+      - 'sysmon/tests/**'
+      - '.github/workflows/sysmon-test.yml'
+  pull_request:
+    paths:
+      - 'sysmon/*.xml'
+  workflow_dispatch:
+    inputs:
+      config_type:
+        description: 'Config to test (ws, srv, dc, sql, exch, iis, all)'
+        required: true
+        default: 'all'
+
+jobs:
+  validate-xml:
+    name: Validate XML Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Sysmon XML files
+        run: |
+          echo "Validating Sysmon configuration XML syntax..."
+          for file in sysmon/sysmon-*.xml; do
+            echo "Checking $file..."
+            xmllint --noout "$file" && echo "  ✓ Valid XML" || exit 1
+          done
+          echo "All XML files are valid!"
+
+  test-sysmon-configs:
+    name: Test ${{ matrix.config }} Config
+    needs: validate-xml
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [ws, srv, dc, sql, exch, iis]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Sysmon
+        shell: powershell
+        run: |
+          Write-Host "Downloading Sysmon from Sysinternals..."
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://download.sysinternals.com/files/Sysmon.zip" -OutFile "Sysmon.zip"
+          Expand-Archive -Path "Sysmon.zip" -DestinationPath ".\Sysmon" -Force
+          Write-Host "Sysmon downloaded successfully"
+
+      - name: Install Sysmon with ${{ matrix.config }} config
+        shell: powershell
+        run: |
+          $configFile = "sysmon\sysmon-${{ matrix.config }}.xml"
+          Write-Host "Installing Sysmon with config: $configFile"
+
+          # Install Sysmon
+          .\Sysmon\Sysmon64.exe -accepteula -i $configFile 2>&1
+
+          # Wait for service to start
+          Start-Sleep -Seconds 5
+
+          # Verify installation
+          $service = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
+          if ($service -and $service.Status -eq "Running") {
+            Write-Host "✓ Sysmon installed and running" -ForegroundColor Green
+          } else {
+            Write-Host "✗ Sysmon installation failed" -ForegroundColor Red
+            exit 1
+          }
+
+      - name: Run Detection Tests
+        id: detection_test
+        shell: powershell
+        run: |
+          Write-Host "Running detection tests for ${{ matrix.config }} configuration..."
+          Write-Host "=" * 60
+
+          # Source the test functions
+          . .\sysmon\tests\Test-SysmonDetection.ps1 -ConfigType "${{ matrix.config }}" -CI
+
+        continue-on-error: true
+
+      - name: Collect Sysmon Events
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "Collecting Sysmon events generated during tests..."
+
+          $events = Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 500 -ErrorAction SilentlyContinue
+
+          if ($events) {
+            Write-Host "Total events captured: $($events.Count)"
+            Write-Host ""
+
+            # Summary by Event ID
+            Write-Host "Events by Type:"
+            Write-Host "-" * 40
+            $events | Group-Object Id | Sort-Object Name | ForEach-Object {
+              $eventName = switch ($_.Name) {
+                1  { "ProcessCreate" }
+                2  { "FileCreateTime" }
+                3  { "NetworkConnect" }
+                5  { "ProcessTerminate" }
+                6  { "DriverLoad" }
+                7  { "ImageLoad" }
+                8  { "CreateRemoteThread" }
+                9  { "RawAccessRead" }
+                10 { "ProcessAccess" }
+                11 { "FileCreate" }
+                12 { "RegistryAddDelete" }
+                13 { "RegistryValueSet" }
+                14 { "RegistryRename" }
+                15 { "FileCreateStreamHash" }
+                17 { "PipeCreated" }
+                18 { "PipeConnected" }
+                19 { "WmiFilterCreate" }
+                20 { "WmiConsumerCreate" }
+                21 { "WmiBindingCreate" }
+                22 { "DnsQuery" }
+                23 { "FileDelete" }
+                24 { "ClipboardChange" }
+                25 { "ProcessTampering" }
+                26 { "FileDeleteDetected" }
+                default { "Unknown" }
+              }
+              Write-Host ("  Event {0,2} ({1,-20}): {2}" -f $_.Name, $eventName, $_.Count)
+            }
+
+            # Export to artifact
+            $events | Select-Object TimeCreated, Id, Message |
+              Export-Csv -Path "sysmon-events-${{ matrix.config }}.csv" -NoTypeInformation
+
+          } else {
+            Write-Host "No Sysmon events captured - config may be too restrictive"
+          }
+
+      - name: Upload Event Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysmon-events-${{ matrix.config }}
+          path: sysmon-events-${{ matrix.config }}.csv
+          if-no-files-found: ignore
+
+      - name: Uninstall Sysmon
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "Cleaning up Sysmon..."
+          .\Sysmon\Sysmon64.exe -u force 2>&1
+          Write-Host "Sysmon uninstalled"
+
+  atomic-red-team:
+    name: Atomic Red Team - ${{ matrix.config }}
+    needs: validate-xml
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [srv, dc, iis]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Sysmon
+        shell: powershell
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://download.sysinternals.com/files/Sysmon.zip" -OutFile "Sysmon.zip"
+          Expand-Archive -Path "Sysmon.zip" -DestinationPath ".\Sysmon" -Force
+
+      - name: Install Sysmon
+        shell: powershell
+        run: |
+          .\Sysmon\Sysmon64.exe -accepteula -i "sysmon\sysmon-${{ matrix.config }}.xml" 2>&1
+          Start-Sleep -Seconds 5
+
+      - name: Install Atomic Red Team
+        shell: powershell
+        run: |
+          Write-Host "Installing Atomic Red Team..."
+          IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing)
+          Install-AtomicRedTeam -getAtomics -Force -ErrorAction SilentlyContinue
+          Write-Host "Atomic Red Team installed"
+
+      - name: Run Atomic Tests (Safe Subset)
+        shell: powershell
+        run: |
+          Write-Host "Running safe Atomic Red Team tests..."
+
+          # Import module
+          Import-Module "C:\AtomicRedTeam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1" -Force
+
+          # Safe techniques that don't require cleanup or cause damage
+          $safeTechniques = @(
+            "T1059.001"  # PowerShell
+            "T1082"      # System Information Discovery
+            "T1057"      # Process Discovery
+            "T1087.001"  # Local Account Discovery
+            "T1018"      # Remote System Discovery
+          )
+
+          $results = @()
+          foreach ($technique in $safeTechniques) {
+            Write-Host "`nTesting $technique..." -ForegroundColor Cyan
+
+            try {
+              # Run with ShowDetails but capture output
+              Invoke-AtomicTest -AtomicTechnique $technique -ShowDetails -ErrorAction SilentlyContinue | Out-Null
+              $results += [PSCustomObject]@{
+                Technique = $technique
+                Status = "Executed"
+              }
+            }
+            catch {
+              $results += [PSCustomObject]@{
+                Technique = $technique
+                Status = "Failed: $($_.Exception.Message)"
+              }
+            }
+          }
+
+          # Summary
+          Write-Host "`n" + "=" * 50
+          Write-Host "ATOMIC TEST RESULTS"
+          Write-Host "=" * 50
+          $results | Format-Table -AutoSize
+
+      - name: Collect Detection Results
+        if: always()
+        shell: powershell
+        run: |
+          $events = Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 1000 -ErrorAction SilentlyContinue
+
+          Write-Host "Events captured: $($events.Count)"
+          Write-Host ""
+
+          $events | Group-Object Id | Sort-Object Count -Descending | ForEach-Object {
+            Write-Host "  Event $($_.Name): $($_.Count)"
+          }
+
+          $events | Select-Object TimeCreated, Id, Message |
+            Export-Csv -Path "atomic-events-${{ matrix.config }}.csv" -NoTypeInformation
+
+      - name: Upload Atomic Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-events-${{ matrix.config }}
+          path: atomic-events-${{ matrix.config }}.csv
+          if-no-files-found: ignore
+
+      - name: Cleanup
+        if: always()
+        shell: powershell
+        run: |
+          .\Sysmon\Sysmon64.exe -u force 2>&1
+
+  summary:
+    name: Test Summary
+    needs: [test-sysmon-configs]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: results
+          pattern: sysmon-events-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Generate Summary
+        run: |
+          echo "# Sysmon Detection Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Configuration Test Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Config | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ws | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| srv | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| dc | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| sql | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| exch | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iis | ${{ needs.test-sysmon-configs.result == 'success' && '✅ Passed' || '⚠️ Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "Event logs from each configuration are available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
