@@ -68,16 +68,19 @@ jobs:
           $configFile = "sysmon\sysmon-${{ matrix.config }}.xml"
           Write-Host "Installing Sysmon with config: $configFile"
 
-          # Install Sysmon
-          .\Sysmon\Sysmon64.exe -accepteula -i $configFile 2>&1
+          # Install Sysmon - ignore stderr as Sysmon writes info there
+          $ErrorActionPreference = 'SilentlyContinue'
+          & .\Sysmon\Sysmon64.exe -accepteula -i $configFile *>&1 | Write-Host
+          $ErrorActionPreference = 'Continue'
 
           # Wait for service to start
           Start-Sleep -Seconds 5
 
-          # Verify installation
+          # Verify installation - this is what matters
           $service = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
           if ($service -and $service.Status -eq 'Running') {
             Write-Host '[OK] Sysmon installed and running' -ForegroundColor Green
+            exit 0
           } else {
             Write-Host '[FAIL] Sysmon installation failed' -ForegroundColor Red
             exit 1
@@ -164,11 +167,13 @@ jobs:
           Write-Host 'Cleaning up Sysmon...'
           $svc = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
           if ($svc) {
-            .\Sysmon\Sysmon64.exe -u force 2>&1 | Out-Null
+            $ErrorActionPreference = 'SilentlyContinue'
+            & .\Sysmon\Sysmon64.exe -u force *>&1 | Out-Null
             Write-Host 'Sysmon uninstalled'
           } else {
             Write-Host 'Sysmon was not installed, skipping cleanup'
           }
+          exit 0
 
   atomic-red-team:
     name: Atomic Red Team - ${{ matrix.config }}
@@ -277,8 +282,10 @@ jobs:
         run: |
           $svc = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
           if ($svc) {
-            .\Sysmon\Sysmon64.exe -u force 2>&1 | Out-Null
+            $ErrorActionPreference = 'SilentlyContinue'
+            & .\Sysmon\Sysmon64.exe -u force *>&1 | Out-Null
           }
+          exit 0
 
   summary:
     name: Test Summary
