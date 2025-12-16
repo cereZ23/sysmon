@@ -76,10 +76,10 @@ jobs:
 
           # Verify installation
           $service = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
-          if ($service -and $service.Status -eq "Running") {
-            Write-Host "✓ Sysmon installed and running" -ForegroundColor Green
+          if ($service -and $service.Status -eq 'Running') {
+            Write-Host '[OK] Sysmon installed and running' -ForegroundColor Green
           } else {
-            Write-Host "✗ Sysmon installation failed" -ForegroundColor Red
+            Write-Host '[FAIL] Sysmon installation failed' -ForegroundColor Red
             exit 1
           }
 
@@ -161,9 +161,14 @@ jobs:
         if: always()
         shell: powershell
         run: |
-          Write-Host "Cleaning up Sysmon..."
-          .\Sysmon\Sysmon64.exe -u force 2>&1
-          Write-Host "Sysmon uninstalled"
+          Write-Host 'Cleaning up Sysmon...'
+          $svc = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
+          if ($svc) {
+            .\Sysmon\Sysmon64.exe -u force 2>&1 | Out-Null
+            Write-Host 'Sysmon uninstalled'
+          } else {
+            Write-Host 'Sysmon was not installed, skipping cleanup'
+          }
 
   atomic-red-team:
     name: Atomic Red Team - ${{ matrix.config }}
@@ -270,7 +275,10 @@ jobs:
         if: always()
         shell: powershell
         run: |
-          .\Sysmon\Sysmon64.exe -u force 2>&1
+          $svc = Get-Service -Name Sysmon64 -ErrorAction SilentlyContinue
+          if ($svc) {
+            .\Sysmon\Sysmon64.exe -u force 2>&1 | Out-Null
+          }
 
   summary:
     name: Test Summary
