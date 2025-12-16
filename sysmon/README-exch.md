@@ -37,15 +37,19 @@ w3wp.exe → net.exe       = LATERAL MOVEMENT PREP
 | 2 | FileCreateTime | Active | Webshell timestomping |
 | 3 | NetworkConnect | Active | Reverse shell detection |
 | 5 | ProcessTerminate | Active | Exchange service + EDR |
+| 6 | DriverLoad | Active | Unsigned/suspicious drivers |
 | 7 | ImageLoad | Active | DLL injection detection |
-| 8 | CreateRemoteThread | Active | Injection detection |
-| 10 | ProcessAccess | Active | LSASS protection |
-| 11 | FileCreate | Active | Webshell file types |
+| 8 | CreateRemoteThread | Active | Injection (AV/EDR excluded) |
+| 9 | RawAccessRead | Active | Raw disk access |
+| 10 | ProcessAccess | Active | LSASS (8 access masks) |
+| 11 | FileCreate | Active | Webshells + targeted exe/dll |
 | 13 | RegistryEvent | Active | Persistence + Exchange keys |
 | 15 | FileCreateStreamHash | Active | ADS detection |
 | 17/18 | PipeEvent | Active | C2 frameworks |
 | 19/20/21 | WmiEvent | Active | WMI persistence |
-| 22 | DnsQuery | Active | Fixed exclusions |
+| 22 | DnsQuery | Active | Optimized for Exchange volume |
+| 25 | ProcessTampering | Active | Hollowing, herpaderping |
+| 26 | FileDelete | Active | Webshell cleanup detection |
 
 ## Exchange-Specific Detections
 
@@ -81,13 +85,19 @@ w3wp.exe → net.exe       = LATERAL MOVEMENT PREP
 <TargetFilename condition="contains">\FrontEnd\HttpProxy\</TargetFilename>
 ```
 
-## Security Fixes Applied
+## Security Fixes Applied (v2.1)
 
-1. **Added Event 2** - Timestomping detection for webshells
-2. **Added Event 5** - Security tool termination monitoring
-3. **Added Event 15** - Alternate Data Stream detection
-4. **Expanded Registry** - COM hijacking, AppInit DLLs, IFEO
-5. **Fixed DNS exclusions** - Removed broad *.microsoft.com
+### Volume Optimization
+1. **DnsQuery** - Added svchost.exe, Exchange processes, O365 domains exclusions
+2. **FileCreate** - exe/dll restricted to suspicious paths (C:\Users\, C:\Windows\Temp\)
+3. **CreateRemoteThread** - Added AV/EDR exclusions (Defender, CrowdStrike, etc.)
+
+### Detection Improvements
+4. **ProcessAccess** - Expanded LSASS masks: 0x40, 0x1000, 0x1010, 0x1038, 0x1410, 0x1438, 0x143a, 0x1fffff
+5. **Added Event 6** - DriverLoad for kernel attacks
+6. **Added Event 9** - RawAccessRead for disk-level access
+7. **Added Event 25** - ProcessTampering for hollowing
+8. **Added Event 26** - FileDelete for webshell cleanup tracking
 
 ## MITRE ATT&CK Coverage
 

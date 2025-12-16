@@ -79,9 +79,10 @@
     </RuleGroup>
 
     <!-- EVENT ID 11: FILE CREATE - WEBSHELL DETECTION -->
+    <!-- NOTE: Balanced for Exchange - webshells always, exe/dll only from suspicious paths -->
     <RuleGroup name="FileCreate" groupRelation="or">
       <FileCreate onmatch="include">
-        <!-- CRITICAL: Webshell file types in web directories -->
+        <!-- CRITICAL: Webshell file types - ALWAYS monitor -->
         <TargetFilename condition="end with">.aspx</TargetFilename>
         <TargetFilename condition="end with">.ashx</TargetFilename>
         <TargetFilename condition="end with">.asmx</TargetFilename>
@@ -89,7 +90,7 @@
         <TargetFilename condition="end with">.jsp</TargetFilename>
         <TargetFilename condition="end with">.php</TargetFilename>
 
-        <!-- ProxyLogon/ProxyShell paths -->
+        <!-- ProxyLogon/ProxyShell paths - ANY file creation -->
         <TargetFilename condition="contains">\inetpub\wwwroot\aspnet_client\</TargetFilename>
         <TargetFilename condition="contains">\FrontEnd\HttpProxy\</TargetFilename>
         <TargetFilename condition="contains">\Autodiscover\</TargetFilename>
@@ -97,14 +98,35 @@
         <TargetFilename condition="contains">\OWA\</TargetFilename>
         <TargetFilename condition="contains">\EWS\</TargetFilename>
 
-        <!-- Executables -->
-        <TargetFilename condition="end with">.exe</TargetFilename>
-        <TargetFilename condition="end with">.dll</TargetFilename>
+        <!-- Scripts - always monitor -->
         <TargetFilename condition="end with">.bat</TargetFilename>
         <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.vbs</TargetFilename>
+        <TargetFilename condition="end with">.js</TargetFilename>
 
-        <!-- System/Persistence -->
-        <TargetFilename condition="begin with">C:\Windows\system32\</TargetFilename>
+        <!-- Executables only from SUSPICIOUS locations (reduce patching noise) -->
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.exe</TargetFilename>
+          <TargetFilename condition="begin with">C:\Users\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.exe</TargetFilename>
+          <TargetFilename condition="begin with">C:\Windows\Temp\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.exe</TargetFilename>
+          <TargetFilename condition="begin with">C:\inetpub\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.dll</TargetFilename>
+          <TargetFilename condition="begin with">C:\Users\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.dll</TargetFilename>
+          <TargetFilename condition="begin with">C:\Windows\Temp\</TargetFilename>
+        </Rule>
+
+        <!-- Task Scheduler persistence -->
         <TargetFilename condition="begin with">C:\Windows\Tasks\</TargetFilename>
         <TargetFilename condition="contains">\Startup\</TargetFilename>
       </FileCreate>
@@ -116,6 +138,12 @@
         <TargetFilename condition="begin with">C:\Program Files\Microsoft\Exchange Server\V15\TransportRoles\</TargetFilename>
         <!-- Exchange logs -->
         <TargetFilename condition="begin with">C:\Program Files\Microsoft\Exchange Server\V15\Logging\</TargetFilename>
+        <!-- Windows Update/Patching -->
+        <Image condition="is">C:\Windows\System32\TiWorker.exe</Image>
+        <Image condition="begin with">C:\Windows\SoftwareDistribution\</Image>
+        <TargetFilename condition="begin with">C:\Windows\WinSxS\</TargetFilename>
+        <!-- Exchange Setup -->
+        <Image condition="begin with">C:\Program Files\Microsoft\Exchange Server\V15\Bin\</Image>
       </FileCreate>
     </RuleGroup>
 
@@ -227,33 +255,97 @@
     </RuleGroup>
 
     <!-- EVENT ID 8: REMOTE THREAD -->
+    <!-- Expanded exclusions for AV/EDR that legitimately inject -->
     <RuleGroup name="CreateRemoteThread" groupRelation="or">
       <CreateRemoteThread onmatch="exclude">
-        <SourceImage condition="is">C:\Windows\system32\svchost.exe</SourceImage>
-        <SourceImage condition="is">C:\Windows\system32\csrss.exe</SourceImage>
+        <!-- System processes -->
+        <SourceImage condition="is">C:\Windows\System32\svchost.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\csrss.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\wininit.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\services.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\lsass.exe</SourceImage>
+
+        <!-- Windows Defender -->
+        <SourceImage condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Platform\</SourceImage>
+        <SourceImage condition="end with">\MsMpEng.exe</SourceImage>
+        <SourceImage condition="end with">\MsSense.exe</SourceImage>
+
+        <!-- Common EDR/AV - CUSTOMIZE for your environment -->
+        <SourceImage condition="contains">CrowdStrike</SourceImage>
+        <SourceImage condition="contains">Carbon Black</SourceImage>
+        <SourceImage condition="contains">Cylance</SourceImage>
+        <SourceImage condition="contains">SentinelOne</SourceImage>
+
+        <!-- .NET CLR -->
+        <SourceImage condition="end with">\clr.dll</SourceImage>
       </CreateRemoteThread>
     </RuleGroup>
 
     <!-- EVENT ID 10: PROCESS ACCESS -->
+    <!-- Expanded LSASS access masks for comprehensive credential theft detection -->
     <RuleGroup name="ProcessAccess" groupRelation="or">
       <ProcessAccess onmatch="include">
+        <!-- Unknown/suspicious call traces -->
+        <CallTrace condition="begin with">UNKNOWN</CallTrace>
+
+        <!-- LSASS access with various attack-related masks -->
         <Rule groupRelation="and">
           <TargetImage condition="end with">lsass.exe</TargetImage>
-          <GrantedAccess condition="contains any">0x1010;0x1fffff</GrantedAccess>
+          <GrantedAccess condition="contains any">0x40;0x1000;0x1010;0x1038;0x1410;0x1438;0x143a;0x1fffff</GrantedAccess>
         </Rule>
       </ProcessAccess>
     </RuleGroup>
 
+    <RuleGroup name="ProcessAccess_Exclude" groupRelation="or">
+      <ProcessAccess onmatch="exclude">
+        <!-- Legitimate system processes accessing LSASS -->
+        <SourceImage condition="is">C:\Windows\System32\lsass.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\csrss.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\wininit.exe</SourceImage>
+        <SourceImage condition="is">C:\Windows\System32\services.exe</SourceImage>
+        <!-- Defender -->
+        <SourceImage condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Platform\</SourceImage>
+        <SourceImage condition="end with">\MsMpEng.exe</SourceImage>
+      </ProcessAccess>
+    </RuleGroup>
+
     <!-- EVENT ID 22: DNS -->
+    <!-- NOTE: Exchange generates high DNS volume - comprehensive exclusions required -->
     <RuleGroup name="DnsQuery" groupRelation="or">
       <DnsQuery onmatch="exclude">
+        <!-- High-volume system processes -->
+        <Image condition="is">C:\Windows\System32\svchost.exe</Image>
+        <Image condition="begin with">C:\Program Files\Microsoft\Exchange Server\</Image>
+        <Image condition="end with">\EdgeTransport.exe</Image>
+        <Image condition="end with">\MSExchangeTransport.exe</Image>
+        <Image condition="end with">\MSExchangeHMWorker.exe</Image>
+
+        <!-- Reverse lookups -->
         <QueryName condition="end with">.arpa</QueryName>
+        <QueryName condition="end with">.in-addr.arpa</QueryName>
+
+        <!-- Windows Update -->
         <QueryName condition="end with">.windowsupdate.com</QueryName>
-        <!-- SECURITY FIX: Removed *.microsoft.com - too broad -->
         <QueryName condition="end with">.update.microsoft.com</QueryName>
-        <QueryName condition="is">settings-win.data.microsoft.com</QueryName>
-        <QueryName condition="is">outlook.office365.com</QueryName>
+
+        <!-- O365/Exchange Online (legitimate for hybrid) -->
         <QueryName condition="end with">.outlook.com</QueryName>
+        <QueryName condition="end with">.outlook.office365.com</QueryName>
+        <QueryName condition="end with">.office365.com</QueryName>
+        <QueryName condition="end with">.office.com</QueryName>
+        <QueryName condition="end with">.microsoftonline.com</QueryName>
+        <QueryName condition="end with">.protection.outlook.com</QueryName>
+
+        <!-- Telemetry -->
+        <QueryName condition="is">settings-win.data.microsoft.com</QueryName>
+        <QueryName condition="is">vortex.data.microsoft.com</QueryName>
+
+        <!-- Certificate validation -->
+        <QueryName condition="end with">.digicert.com</QueryName>
+        <QueryName condition="end with">.verisign.com</QueryName>
+        <QueryName condition="is">ocsp.msocsp.com</QueryName>
+
+        <!-- Defender -->
         <Image condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</Image>
       </DnsQuery>
     </RuleGroup>
@@ -298,6 +390,71 @@
       <FileCreateStreamHash onmatch="exclude">
         <TargetFilename condition="end with">:Zone.Identifier</TargetFilename>
       </FileCreateStreamHash>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 6: DRIVER LOAD
+         Detect kernel-level attacks, rootkits
+         ============================================ -->
+    <RuleGroup name="DriverLoad" groupRelation="or">
+      <DriverLoad onmatch="include">
+        <!-- Unsigned drivers -->
+        <Signed condition="is">false</Signed>
+        <!-- Drivers from suspicious locations -->
+        <ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\ProgramData\</ImageLoaded>
+      </DriverLoad>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 9: RAW ACCESS READ
+         Detect raw disk access (unusual on Exchange)
+         ============================================ -->
+    <RuleGroup name="RawAccessRead" groupRelation="or">
+      <RawAccessRead onmatch="include">
+        <Device condition="begin with">\Device\Harddisk</Device>
+      </RawAccessRead>
+    </RuleGroup>
+
+    <RuleGroup name="RawAccessRead_Exclude" groupRelation="or">
+      <RawAccessRead onmatch="exclude">
+        <!-- Defender -->
+        <Image condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</Image>
+        <!-- Backup software - CUSTOMIZE -->
+        <!-- <Image condition="begin with">C:\Program Files\Veeam\</Image> -->
+      </RawAccessRead>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 25: PROCESS TAMPERING
+         Detects process hollowing, herpaderping
+         ============================================ -->
+    <RuleGroup name="ProcessTampering" groupRelation="or">
+      <ProcessTampering onmatch="include">
+        <Type condition="is">Image is replaced</Type>
+        <Type condition="is">Image is locked for access</Type>
+      </ProcessTampering>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 26: FILE DELETE DETECTED
+         Track deletion of evidence
+         ============================================ -->
+    <RuleGroup name="FileDelete" groupRelation="or">
+      <FileDelete onmatch="include">
+        <!-- Executables/scripts deleted -->
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <!-- Webshells deleted (cleanup after attack) -->
+        <TargetFilename condition="end with">.aspx</TargetFilename>
+        <TargetFilename condition="end with">.ashx</TargetFilename>
+        <!-- Log deletion -->
+        <TargetFilename condition="end with">.evtx</TargetFilename>
+        <TargetFilename condition="end with">.log</TargetFilename>
+      </FileDelete>
     </RuleGroup>
 
   </EventFiltering>
