@@ -122,26 +122,54 @@
     </RuleGroup>
 
     <!-- EVENT ID 11: FILE CREATE -->
+    <!-- NOTE: Balanced for DC - reduced noise during patching -->
     <RuleGroup name="FileCreate" groupRelation="or">
       <FileCreate onmatch="include">
-        <!-- NTDS.dit copies -->
+        <!-- NTDS.dit copies - CRITICAL -->
         <TargetFilename condition="contains">ntds</TargetFilename>
         <TargetFilename condition="end with">.dit</TargetFilename>
         <TargetFilename condition="contains">SYSTEM.hiv</TargetFilename>
+        <TargetFilename condition="contains">SAM.hiv</TargetFilename>
+        <TargetFilename condition="contains">SECURITY.hiv</TargetFilename>
 
-        <!-- Executables -->
-        <TargetFilename condition="end with">.exe</TargetFilename>
-        <TargetFilename condition="end with">.dll</TargetFilename>
+        <!-- Scripts (more targeted than all .exe/.dll) -->
         <TargetFilename condition="end with">.bat</TargetFilename>
         <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.vbs</TargetFilename>
+        <TargetFilename condition="end with">.js</TargetFilename>
 
-        <!-- System paths -->
-        <TargetFilename condition="begin with">C:\Windows\system32\</TargetFilename>
+        <!-- Suspicious locations only for executables -->
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.exe</TargetFilename>
+          <TargetFilename condition="begin with">C:\Users\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.exe</TargetFilename>
+          <TargetFilename condition="begin with">C:\Windows\Temp\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetFilename condition="end with">.dll</TargetFilename>
+          <TargetFilename condition="begin with">C:\Users\</TargetFilename>
+        </Rule>
+
+        <!-- Task Scheduler -->
         <TargetFilename condition="begin with">C:\Windows\Tasks\</TargetFilename>
-        <TargetFilename condition="begin with">C:\Windows\Temp\</TargetFilename>
 
-        <!-- User profiles (unusual on DC) -->
-        <TargetFilename condition="begin with">C:\Users\</TargetFilename>
+        <!-- SYSVOL tampering -->
+        <TargetFilename condition="contains">\SYSVOL\</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+    <RuleGroup name="FileCreate_Exclude" groupRelation="or">
+      <FileCreate onmatch="exclude">
+        <!-- Windows Update/Patching -->
+        <Image condition="is">C:\Windows\System32\TiWorker.exe</Image>
+        <Image condition="begin with">C:\Windows\SoftwareDistribution\</Image>
+        <Image condition="is">C:\Windows\System32\wuauclt.exe</Image>
+        <!-- CBS/DISM -->
+        <Image condition="is">C:\Windows\System32\Dism.exe</Image>
+        <TargetFilename condition="begin with">C:\Windows\WinSxS\</TargetFilename>
+        <TargetFilename condition="begin with">C:\Windows\Logs\CBS\</TargetFilename>
       </FileCreate>
     </RuleGroup>
 
@@ -221,23 +249,49 @@
     </RuleGroup>
 
     <!-- EVENT ID 7: IMAGE LOAD -->
+    <!-- SECURITY NOTE: lsass.exe NOT excluded - we want to see DLLs loaded into LSASS on DC -->
     <RuleGroup name="ImageLoad" groupRelation="or">
       <ImageLoad onmatch="include">
+        <!-- Suspicious load locations -->
         <ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
         <ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\ProgramData\</ImageLoaded>
+
+        <!-- Credential DLLs - CRITICAL on DC -->
         <ImageLoaded condition="end with">\samlib.dll</ImageLoaded>
         <ImageLoaded condition="end with">\vaultcli.dll</ImageLoaded>
         <ImageLoaded condition="end with">\comsvcs.dll</ImageLoaded>
         <ImageLoaded condition="end with">\dbghelp.dll</ImageLoaded>
+        <ImageLoaded condition="end with">\dbgcore.dll</ImageLoaded>
+        <ImageLoaded condition="end with">\winsqlite3.dll</ImageLoaded>
+
+        <!-- Mimikatz indicators -->
+        <ImageLoaded condition="end with">\mimilib.dll</ImageLoaded>
+        <ImageLoaded condition="end with">\mimidrv.sys</ImageLoaded>
+
+        <!-- PowerShell in non-PowerShell processes -->
         <ImageLoaded condition="end with">\System.Management.Automation.dll</ImageLoaded>
+
+        <!-- LSASS loading from suspicious paths -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\lsass.exe</Image>
+          <ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\lsass.exe</Image>
+          <ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
+        </Rule>
       </ImageLoad>
     </RuleGroup>
 
     <RuleGroup name="ImageLoad_Exclude" groupRelation="or">
       <ImageLoad onmatch="exclude">
-        <Image condition="is">C:\Windows\System32\lsass.exe</Image>
+        <!-- Only exclude high-volume legitimate loads -->
+        <!-- NOTE: lsass.exe intentionally NOT excluded on DC -->
         <Image condition="is">C:\Windows\System32\svchost.exe</Image>
-        <Image condition="is">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Image>
+        <ImageLoaded condition="begin with">C:\Windows\System32\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Windows\WinSxS\</ImageLoaded>
       </ImageLoad>
     </RuleGroup>
 
@@ -284,11 +338,28 @@
     </RuleGroup>
 
     <!-- EVENT ID 22: DNS -->
+    <!-- NOTE: DC with DNS role generates massive volume -->
     <RuleGroup name="DnsQuery" groupRelation="or">
       <DnsQuery onmatch="exclude">
+        <!-- DNS Server process - CRITICAL exclusion for DC -->
+        <Image condition="is">C:\Windows\System32\dns.exe</Image>
+        <Image condition="is">C:\Windows\System32\svchost.exe</Image>
+
+        <!-- Reverse lookups -->
         <QueryName condition="end with">.arpa</QueryName>
+        <QueryName condition="end with">.in-addr.arpa</QueryName>
+
+        <!-- Windows Update -->
         <QueryName condition="end with">.windowsupdate.com</QueryName>
         <QueryName condition="end with">.update.microsoft.com</QueryName>
+
+        <!-- AD/Kerberos internal -->
+        <QueryName condition="begin with">_ldap.</QueryName>
+        <QueryName condition="begin with">_kerberos.</QueryName>
+        <QueryName condition="begin with">_gc.</QueryName>
+        <QueryName condition="begin with">_msdcs.</QueryName>
+
+        <!-- Defender -->
         <Image condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</Image>
       </DnsQuery>
     </RuleGroup>
@@ -331,6 +402,72 @@
       <FileCreateStreamHash onmatch="exclude">
         <TargetFilename condition="end with">:Zone.Identifier</TargetFilename>
       </FileCreateStreamHash>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 6: DRIVER LOAD
+         CRITICAL for DC: Kernel-level attacks
+         ============================================ -->
+    <RuleGroup name="DriverLoad" groupRelation="or">
+      <DriverLoad onmatch="include">
+        <!-- Unsigned drivers -->
+        <Signed condition="is">false</Signed>
+        <!-- Drivers from suspicious locations -->
+        <ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\ProgramData\</ImageLoaded>
+      </DriverLoad>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 9: RAW ACCESS READ
+         CRITICAL for DC: NTDS.dit offline extraction
+         ============================================ -->
+    <RuleGroup name="RawAccessRead" groupRelation="or">
+      <RawAccessRead onmatch="include">
+        <!-- ANY raw disk access on DC is suspicious -->
+        <Device condition="begin with">\Device\Harddisk</Device>
+      </RawAccessRead>
+    </RuleGroup>
+
+    <RuleGroup name="RawAccessRead_Exclude" groupRelation="or">
+      <RawAccessRead onmatch="exclude">
+        <!-- Defender -->
+        <Image condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</Image>
+        <!-- Backup software - CUSTOMIZE -->
+        <!-- <Image condition="begin with">C:\Program Files\Veeam\</Image> -->
+      </RawAccessRead>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 25: PROCESS TAMPERING
+         Detects process hollowing, herpaderping
+         ============================================ -->
+    <RuleGroup name="ProcessTampering" groupRelation="or">
+      <ProcessTampering onmatch="include">
+        <!-- ALL process tampering is suspicious on DC -->
+        <Type condition="is">Image is replaced</Type>
+        <Type condition="is">Image is locked for access</Type>
+      </ProcessTampering>
+    </RuleGroup>
+
+    <!-- ============================================
+         EVENT ID 26: FILE DELETE DETECTED
+         Track deletion of evidence
+         ============================================ -->
+    <RuleGroup name="FileDelete" groupRelation="or">
+      <FileDelete onmatch="include">
+        <!-- Executables deleted -->
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <!-- Log deletion -->
+        <TargetFilename condition="end with">.evtx</TargetFilename>
+        <TargetFilename condition="end with">.log</TargetFilename>
+        <!-- NTDS related -->
+        <TargetFilename condition="contains">ntds</TargetFilename>
+      </FileDelete>
     </RuleGroup>
 
   </EventFiltering>

@@ -41,17 +41,21 @@ mimikatz → LSASS access
 |----------|------|--------|-------|
 | 1 | ProcessCreate | Active | ALL discovery commands |
 | 2 | FileCreateTime | Active | SYSVOL/NTDS timestomping |
-| 3 | NetworkConnect | Active | DRSUAPI (port 135) |
+| 3 | NetworkConnect | Active | Suspicious outbound |
 | 5 | ProcessTerminate | Active | AD services + EDR |
-| 7 | ImageLoad | Active | Credential DLLs |
-| 8 | CreateRemoteThread | Active | Injection (excl. lsass) |
+| 6 | DriverLoad | Active | Unsigned/suspicious drivers |
+| 7 | ImageLoad | Active | Credential DLLs, LSASS loads |
+| 8 | CreateRemoteThread | Active | Injection detection |
+| 9 | RawAccessRead | Active | Raw disk access (NTDS offline) |
 | 10 | ProcessAccess | Active | LSASS with 6 access flags |
-| 11 | FileCreate | Active | NTDS.dit copies, user profiles |
+| 11 | FileCreate | Active | NTDS.dit copies, scripts |
 | 13 | RegistryEvent | Active | GPO, SAM, NTDS, Kerberos |
 | 15 | FileCreateStreamHash | Active | ADS detection |
 | 17/18 | PipeEvent | Active | DRSUAPI, C2 frameworks |
 | 19/20/21 | WmiEvent | Active | WMI persistence |
-| 22 | DnsQuery | Active | Minimal exclusions |
+| 22 | DnsQuery | Active | Optimized for DNS role |
+| 25 | ProcessTampering | Active | Hollowing, herpaderping |
+| 26 | FileDelete | Active | Evidence deletion |
 
 ## DC-Specific Detections
 
@@ -206,7 +210,39 @@ index=sysmon EventCode=1
 - `dfsr.exe` - DFS Replication
 - Security tools (Defender, CrowdStrike, Carbon Black)
 
+## Important Limitations
+
+### DCSync Detection via Sysmon
+
+**Sysmon on the DC has limited visibility for DCSync attacks:**
+
+DCSync uses DRSUAPI replication protocol. When an attacker runs DCSync from another machine:
+- The DC receives an **inbound** RPC connection on port 135
+- Sysmon NetworkConnect only logs **outbound** connections from the DC
+- The attack traffic is invisible to Sysmon on the DC
+
+**Recommended Detection Strategy:**
+
+1. **Windows Security Event 4662** - Monitor for DS-Replication-Get-Changes operations
+2. **Sysmon on attacker host** - Detect secretsdump.py/mimikatz execution
+3. **Network monitoring** - Detect RPC to DC from non-DC hosts
+4. **Named Pipe monitoring** - DRSUAPI pipe access (limited reliability)
+
+```spl
+# Better DCSync detection via Security Events
+index=wineventlog EventCode=4662
+| search ObjectType="*DS-Replication-Get-Changes*"
+| table _time, SubjectUserName, SubjectDomainName, ObjectName
+```
+
+### Raw Disk Access (Event 9)
+
+Event ID 9 (RawAccessRead) detects offline NTDS.dit extraction attempts where attackers:
+1. Create VSS shadow copy
+2. Access raw disk to read NTDS.dit directly
+3. Bypass file locks
+
 ---
-**Version:** 2.0
+**Version:** 2.1
 **Last Updated:** December 2025
 **Threat Level:** CRITICAL - Tier-0 Asset
