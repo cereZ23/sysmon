@@ -97,6 +97,22 @@
         <Image condition="image">wscript.exe</Image>
         <Image condition="image">cscript.exe</Image>
 
+        <!-- Discovery commands (unusual on SQL server) -->
+        <Image condition="image">whoami.exe</Image>
+        <Image condition="image">hostname.exe</Image>
+        <Image condition="image">net.exe</Image>
+        <Image condition="image">net1.exe</Image>
+        <Image condition="image">systeminfo.exe</Image>
+        <Image condition="image">tasklist.exe</Image>
+        <Image condition="image">query.exe</Image>
+        <Image condition="image">ipconfig.exe</Image>
+        <Image condition="image">netstat.exe</Image>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <CommandLine condition="contains">net user</CommandLine>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
+
         <!-- Lateral Movement -->
         <Image condition="image">psexec.exe</Image>
         <Image condition="image">psexesvc.exe</Image>
@@ -254,6 +270,10 @@
 
         <!-- BCP for data exfil -->
         <Image condition="image">bcp.exe</Image>
+
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
 
         <!-- Suspicious ports -->
         <DestinationPort condition="is">4444</DestinationPort>

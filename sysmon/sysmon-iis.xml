@@ -102,6 +102,17 @@
         <!-- ===== Persistence (always monitor) ===== -->
         <Image condition="image">schtasks.exe</Image>
         <Image condition="image">sc.exe</Image>
+
+        <!-- Discovery commands (unusual on IIS server) -->
+        <Image condition="image">tasklist.exe</Image>
+        <Image condition="image">query.exe</Image>
+        <Image condition="image">netstat.exe</Image>
+        <Image condition="image">nltest.exe</Image>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <CommandLine condition="contains">net user</CommandLine>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
       </ProcessCreate>
     </RuleGroup>
 
@@ -234,6 +245,10 @@
         <DestinationPort condition="is">6666</DestinationPort>
         <DestinationPort condition="is">31337</DestinationPort>
         <DestinationPort condition="is">9001</DestinationPort>
+
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
       </NetworkConnect>
     </RuleGroup>
 

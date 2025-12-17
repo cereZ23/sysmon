@@ -68,6 +68,12 @@
         <CommandLine condition="contains">domain admins</CommandLine>
         <CommandLine condition="contains">enterprise admins</CommandLine>
         <CommandLine condition="contains">/domain</CommandLine>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <Image condition="image">query.exe</Image>
+        <Image condition="image">quser.exe</Image>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
 
         <!-- LOLBins -->
         <Image condition="image">certutil.exe</Image>
@@ -114,6 +120,10 @@
         <Image condition="image">certutil.exe</Image>
         <!-- DRSUAPI port (DCSync) -->
         <DestinationPort condition="is">135</DestinationPort>
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
+
         <!-- Suspicious ports -->
         <DestinationPort condition="is">4444</DestinationPort>
         <DestinationPort condition="is">5555</DestinationPort>

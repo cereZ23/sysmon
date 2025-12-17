@@ -35,11 +35,19 @@
         <!-- Discovery -->
         <Image condition="image">whoami.exe</Image>
         <Image condition="image">net.exe</Image>
+        <Image condition="image">net1.exe</Image>
         <Image condition="image">nltest.exe</Image>
         <Image condition="image">systeminfo.exe</Image>
         <Image condition="image">tasklist.exe</Image>
         <Image condition="image">ipconfig.exe</Image>
         <Image condition="image">netstat.exe</Image>
+        <Image condition="image">query.exe</Image>
+        <Image condition="image">quser.exe</Image>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <CommandLine condition="contains">net user</CommandLine>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
 
         <!-- Credential Access -->
         <Image condition="image">procdump.exe</Image>
@@ -156,6 +164,10 @@
         <Image condition="image">powershell.exe</Image>
         <Image condition="image">certutil.exe</Image>
         <Image condition="image">bitsadmin.exe</Image>
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
+
         <!-- Suspicious ports -->
         <DestinationPort condition="is">4444</DestinationPort>
         <DestinationPort condition="is">5555</DestinationPort>

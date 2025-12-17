@@ -59,6 +59,12 @@
         <Image condition="image">systeminfo.exe</Image>
         <Image condition="image">tasklist.exe</Image>
         <Image condition="image">quser.exe</Image>
+        <Image condition="image">query.exe</Image>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <CommandLine condition="contains">net user</CommandLine>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
 
         <!-- LOLBins (T1218) -->
         <Image condition="image">msiexec.exe</Image>
@@ -377,6 +383,9 @@
 
         <!-- WORKSTATION: Removed common ports 22, 25 - may generate noise -->
         <!-- Keep high-value suspicious ports -->
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
         <DestinationPort condition="is">23</DestinationPort>
         <DestinationPort condition="is">3389</DestinationPort>
         <DestinationPort condition="is">5800</DestinationPort>

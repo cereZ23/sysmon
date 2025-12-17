@@ -94,6 +94,11 @@
         <Image condition="image">pathping.exe</Image>
         <Image condition="image">nbtstat.exe</Image>
         <Image condition="image">netsh.exe</Image>
+        <!-- T1087.001 specific - Local Account Discovery -->
+        <CommandLine condition="contains">net user</CommandLine>
+        <CommandLine condition="contains">net1 user</CommandLine>
+        <CommandLine condition="contains">get-localuser</CommandLine>
+        <CommandLine condition="contains">wmic useraccount</CommandLine>
 
         <!-- LOLBins (T1218) -->
         <Image condition="image">msiexec.exe</Image>
@@ -364,6 +369,10 @@
 
         <!-- SERVER: Monitor SSH (may be normal but worth logging) -->
         <DestinationPort condition="is">22</DestinationPort>
+
+        <!-- T1021.002 - SMB/Windows Admin Shares (Lateral Movement) -->
+        <DestinationPort condition="is">445</DestinationPort>
+        <DestinationPort condition="is">139</DestinationPort>
 
         <!-- Suspicious ports -->
         <DestinationPort condition="is">23</DestinationPort>
