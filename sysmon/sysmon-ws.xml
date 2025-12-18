@@ -165,6 +165,62 @@
         <Image condition="is">C:\Program Files\Google\Update\GoogleUpdate.exe</Image>
         <Image condition="is">C:\Program Files (x86)\Google\Update\GoogleUpdate.exe</Image>
         <Image condition="is">C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe</Image>
+
+        <!-- ================================================
+             ESCLUSIONI AGGIUNTIVE DA WHITELIST OPERATIVA
+             Aggiunto: 2025-12-18
+             ================================================ -->
+
+        <!-- SCCM/MECM - Configuration Manager -->
+        <ParentImage condition="is">C:\Windows\CCM\CcmExec.exe</ParentImage>
+        <ParentImage condition="is">C:\Windows\CCM\Ccm32BitLauncher.exe</ParentImage>
+        <Image condition="begin with">C:\Windows\ccmcache\</Image>
+        <CommandLine condition="contains">/NAMESPACE:\\root\ccm\dcm path SMS_DesiredConfiguration</CommandLine>
+
+        <!-- Adobe Products -->
+        <Image condition="begin with">C:\Program Files (x86)\Adobe\Acrobat Reader DC\</Image>
+        <Image condition="begin with">C:\Program Files\Adobe\Acrobat DC\</Image>
+        <Image condition="begin with">C:\Program Files (x86)\Common Files\Adobe\ARM\</Image>
+        <ParentImage condition="begin with">C:\Program Files (x86)\Adobe\</ParentImage>
+        <ParentImage condition="begin with">C:\Program Files\Adobe\</ParentImage>
+
+        <!-- Omnissa Horizon VDI -->
+        <Image condition="begin with">C:\Program Files\Omnissa\Omnissa Horizon Client\</Image>
+        <Image condition="begin with">C:\Program Files (x86)\Common Files\Omnissa\</Image>
+        <ParentImage condition="end with">\horizon_client_service.exe</ParentImage>
+
+        <!-- Driver OEM (Intel, Realtek, Lenovo, ASUS) -->
+        <Image condition="begin with">C:\Program Files\Intel\</Image>
+        <Image condition="begin with">C:\Program Files\Realtek\Audio\</Image>
+        <Image condition="begin with">C:\Windows\System32\DriverStore\FileRepository\realtekservice.inf</Image>
+        <ParentImage condition="end with">\AsusAppService.exe</ParentImage>
+        <ParentImage condition="end with">\Lenovo.Modern.ImController.exe</ParentImage>
+
+        <!-- Windows System - Noise Reduction -->
+        <!-- taskhostw.exe con parametri legittimi -->
+        <Rule groupRelation="and">
+          <Image condition="end with">\taskhostw.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+        </Rule>
+
+        <!-- rundll32 con DLL di sistema legittime -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <CommandLine condition="contains any">shell32.dll,SHCreateLocalServerRunDll;acmigration.dll,ApplyMigrationShims;acproxy.dll,PerformAutochkOperations;PcaSvc.dll,PcaPatchSdbTask;PcaSvc.dll,PcaWallpaperAppDetect;Windows.StateRepositoryClient.dll,StateRepositoryDoMaintenanceTasks;Startupscan.dll,SusRunTask;Windows.Storage.ApplicationData.dll,CleanupTemporaryState</CommandLine>
+        </Rule>
+
+        <!-- regsvr32 per PrintConfig (molto frequente) -->
+        <Rule groupRelation="and">
+          <Image condition="end with">\regsvr32.exe</Image>
+          <CommandLine condition="contains">PrintConfig.dll</CommandLine>
+        </Rule>
+
+        <!-- Windows Defender manifest updates -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\wevtutil.exe</Image>
+          <CommandLine condition="contains">Microsoft-Antimalware-AMFilter.man</CommandLine>
+        </Rule>
+
       </ProcessCreate>
     </RuleGroup>
 
