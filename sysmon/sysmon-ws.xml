@@ -169,56 +169,198 @@
         <!-- ================================================
              ESCLUSIONI AGGIUNTIVE DA WHITELIST OPERATIVA
              Aggiunto: 2025-12-18
+             HARDENED: 2025-12-18 - Esclusioni granulari per ridurre blind spots
              ================================================ -->
 
-        <!-- SCCM/MECM - Configuration Manager -->
-        <ParentImage condition="is">C:\Windows\CCM\CcmExec.exe</ParentImage>
-        <ParentImage condition="is">C:\Windows\CCM\Ccm32BitLauncher.exe</ParentImage>
-        <Image condition="begin with">C:\Windows\ccmcache\</Image>
-        <CommandLine condition="contains">/NAMESPACE:\\root\ccm\dcm path SMS_DesiredConfiguration</CommandLine>
-
-        <!-- Adobe Products -->
-        <Image condition="begin with">C:\Program Files (x86)\Adobe\Acrobat Reader DC\</Image>
-        <Image condition="begin with">C:\Program Files\Adobe\Acrobat DC\</Image>
-        <Image condition="begin with">C:\Program Files (x86)\Common Files\Adobe\ARM\</Image>
-        <ParentImage condition="begin with">C:\Program Files (x86)\Adobe\</ParentImage>
-        <ParentImage condition="begin with">C:\Program Files\Adobe\</ParentImage>
-
-        <!-- Omnissa Horizon VDI -->
-        <Image condition="begin with">C:\Program Files\Omnissa\Omnissa Horizon Client\</Image>
-        <Image condition="begin with">C:\Program Files (x86)\Common Files\Omnissa\</Image>
-        <ParentImage condition="end with">\horizon_client_service.exe</ParentImage>
-
-        <!-- Driver OEM (Intel, Realtek, Lenovo, ASUS) -->
-        <Image condition="begin with">C:\Program Files\Intel\</Image>
-        <Image condition="begin with">C:\Program Files\Realtek\Audio\</Image>
-        <Image condition="begin with">C:\Windows\System32\DriverStore\FileRepository\realtekservice.inf</Image>
-        <ParentImage condition="end with">\AsusAppService.exe</ParentImage>
-        <ParentImage condition="end with">\Lenovo.Modern.ImController.exe</ParentImage>
-
-        <!-- Windows System - Noise Reduction -->
-        <!-- taskhostw.exe con parametri legittimi -->
+        <!-- ====== SCCM/MECM - Configuration Manager ======
+             RISCHIO MITIGATO: ccmcache NON viene escluso globalmente
+             Manteniamo visibilità su eseguibili sospetti in ccmcache -->
+        
+        <!-- CcmExec come parent - solo per processi SCCM legittimi -->
         <Rule groupRelation="and">
-          <Image condition="end with">\taskhostw.exe</Image>
+          <ParentImage condition="is">C:\Windows\CCM\CcmExec.exe</ParentImage>
+          <Image condition="begin with">C:\Windows\CCM\</Image>
+        </Rule>
+        <Rule groupRelation="and">
+          <ParentImage condition="is">C:\Windows\CCM\CcmExec.exe</ParentImage>
+          <Image condition="is">C:\Windows\System32\wbem\WmiPrvSE.exe</Image>
+        </Rule>
+        
+        <!-- Ccm32BitLauncher - solo per binari SCCM -->
+        <Rule groupRelation="and">
+          <ParentImage condition="is">C:\Windows\CCM\Ccm32BitLauncher.exe</ParentImage>
+          <Image condition="begin with">C:\Windows\CCM\</Image>
+        </Rule>
+
+        <!-- ccmcache - SOLO installer legittimi, NON eseguibili generici
+             NOTA: Gli .exe in ccmcache vengono comunque loggati! -->
+        <Rule groupRelation="and">
+          <Image condition="begin with">C:\Windows\ccmcache\</Image>
+          <ParentImage condition="is">C:\Windows\System32\msiexec.exe</ParentImage>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="begin with">C:\Windows\ccmcache\</Image>
+          <ParentImage condition="is">C:\Windows\CCM\CcmExec.exe</ParentImage>
+          <CommandLine condition="contains">/install</CommandLine>
+        </Rule>
+        
+        <!-- WMI SMS query - specifica con parent corretto -->
+        <Rule groupRelation="and">
+          <CommandLine condition="contains">/NAMESPACE:\\root\ccm\dcm</CommandLine>
+          <Image condition="is">C:\Windows\System32\wbem\WMIC.exe</Image>
+          <ParentImage condition="begin with">C:\Windows\CCM\</ParentImage>
+        </Rule>
+
+        <!-- ====== Adobe Products ======
+             RISCHIO MITIGATO: Esclusione per eseguibili specifici, no wildcard -->
+        
+        <!-- Adobe Reader DC - processi specifici -->
+        <Image condition="is">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe</Image>
+        <Image condition="is">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroCEF\RdrCEF.exe</Image>
+        <Image condition="is">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AdobeCollabSync.exe</Image>
+        <Image condition="is">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\Eula.exe</Image>
+        
+        <!-- Adobe Acrobat DC Pro - processi specifici -->
+        <Image condition="is">C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe</Image>
+        <Image condition="is">C:\Program Files\Adobe\Acrobat DC\Acrobat\AcroCEF\AcroCEF.exe</Image>
+        <Image condition="is">C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeCollabSync.exe</Image>
+        
+        <!-- Adobe ARM (update) - solo con parent legittimo -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Program Files (x86)\Common Files\Adobe\ARM\1.0\AdobeARM.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Program Files (x86)\Common Files\Adobe\ARM\1.0\armsvc.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\services.exe</ParentImage>
+        </Rule>
+
+        <!-- ====== Omnissa Horizon VDI ======
+             RISCHIO MITIGATO: Solo eseguibili specifici Horizon -->
+        
+        <Image condition="is">C:\Program Files\Omnissa\Omnissa Horizon Client\vmware-view.exe</Image>
+        <Image condition="is">C:\Program Files\Omnissa\Omnissa Horizon Client\vmware-remotemks.exe</Image>
+        <Image condition="is">C:\Program Files\Omnissa\Omnissa Horizon Client\vmware-usbarbitrator64.exe</Image>
+        <Image condition="is">C:\Program Files\Omnissa\Omnissa Horizon Client\vmware-horizon-client.exe</Image>
+        <Image condition="is">C:\Program Files (x86)\Common Files\Omnissa\USB\vmware-usbarbitrator.exe</Image>
+        
+        <!-- Horizon service come parent - solo per processi Omnissa -->
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\horizon_client_service.exe</ParentImage>
+          <Image condition="begin with">C:\Program Files\Omnissa\</Image>
+        </Rule>
+
+        <!-- ====== Driver OEM (Intel, Realtek, Lenovo, ASUS) ======
+             RISCHIO MITIGATO: Solo servizi avviati da services.exe -->
+        
+        <!-- Intel - solo quando avviato come servizio -->
+        <Rule groupRelation="and">
+          <Image condition="begin with">C:\Program Files\Intel\</Image>
+          <ParentImage condition="is">C:\Windows\System32\services.exe</ParentImage>
+        </Rule>
+        
+        <!-- Realtek Audio - solo quando avviato come servizio -->
+        <Rule groupRelation="and">
+          <Image condition="begin with">C:\Program Files\Realtek\Audio\</Image>
+          <ParentImage condition="is">C:\Windows\System32\services.exe</ParentImage>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="begin with">C:\Windows\System32\DriverStore\FileRepository\realtekservice.inf</Image>
+          <ParentImage condition="is">C:\Windows\System32\services.exe</ParentImage>
+        </Rule>
+        
+        <!-- ASUS/Lenovo Services - solo child in Program Files -->
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\AsusAppService.exe</ParentImage>
+          <Image condition="begin with">C:\Program Files\</Image>
+        </Rule>
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\AsusAppService.exe</ParentImage>
+          <Image condition="begin with">C:\Program Files (x86)\</Image>
+        </Rule>
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\Lenovo.Modern.ImController.exe</ParentImage>
+          <Image condition="begin with">C:\Program Files\</Image>
+        </Rule>
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\Lenovo.Modern.ImController.exe</ParentImage>
+          <Image condition="begin with">C:\Program Files (x86)\</Image>
+        </Rule>
+
+        <!-- ====== Windows System - Noise Reduction (HARDENED) ====== -->
+        
+        <!-- taskhostw.exe - SOLO path esatto + parent svchost -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\taskhostw.exe</Image>
           <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
         </Rule>
 
-        <!-- rundll32 con DLL di sistema legittime -->
+        <!-- rundll32 - HARDENED: richiede parent legittimo + DLL specifica
+             NOTA: shell32.dll,SHCreateLocalServerRunDll deve avere explorer come parent -->
         <Rule groupRelation="and">
           <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
-          <CommandLine condition="contains any">shell32.dll,SHCreateLocalServerRunDll;acmigration.dll,ApplyMigrationShims;acproxy.dll,PerformAutochkOperations;PcaSvc.dll,PcaPatchSdbTask;PcaSvc.dll,PcaWallpaperAppDetect;Windows.StateRepositoryClient.dll,StateRepositoryDoMaintenanceTasks;Startupscan.dll,SusRunTask;Windows.Storage.ApplicationData.dll,CleanupTemporaryState</CommandLine>
+          <ParentImage condition="is">C:\Windows\explorer.exe</ParentImage>
+          <CommandLine condition="contains">shell32.dll,SHCreateLocalServerRunDll</CommandLine>
         </Rule>
-
-        <!-- regsvr32 per PrintConfig (molto frequente) -->
+        <!-- rundll32 chiamato da svchost per task di sistema -->
         <Rule groupRelation="and">
-          <Image condition="end with">\regsvr32.exe</Image>
-          <CommandLine condition="contains">PrintConfig.dll</CommandLine>
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">acmigration.dll,ApplyMigrationShims</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">acproxy.dll,PerformAutochkOperations</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">PcaSvc.dll,PcaPatchSdbTask</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">PcaSvc.dll,PcaWallpaperAppDetect</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">Windows.StateRepositoryClient.dll,StateRepositoryDoMaintenanceTasks</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">Startupscan.dll,SusRunTask</CommandLine>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\rundll32.exe</Image>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+          <CommandLine condition="contains">Windows.Storage.ApplicationData.dll,CleanupTemporaryState</CommandLine>
         </Rule>
 
-        <!-- Windows Defender manifest updates -->
+        <!-- regsvr32 - HARDENED: PrintConfig SOLO da spoolsv o svchost -->
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\regsvr32.exe</Image>
+          <CommandLine condition="contains">PrintConfig.dll</CommandLine>
+          <ParentImage condition="is">C:\Windows\System32\svchost.exe</ParentImage>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\regsvr32.exe</Image>
+          <CommandLine condition="contains">PrintConfig.dll</CommandLine>
+          <ParentImage condition="is">C:\Windows\System32\spoolsv.exe</ParentImage>
+        </Rule>
+
+        <!-- wevtutil - HARDENED: Defender manifest SOLO da TrustedInstaller o Defender -->
         <Rule groupRelation="and">
           <Image condition="is">C:\Windows\System32\wevtutil.exe</Image>
           <CommandLine condition="contains">Microsoft-Antimalware-AMFilter.man</CommandLine>
+          <ParentImage condition="is">C:\Windows\servicing\TrustedInstaller.exe</ParentImage>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Windows\System32\wevtutil.exe</Image>
+          <CommandLine condition="contains">Microsoft-Antimalware-AMFilter.man</CommandLine>
+          <ParentImage condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Platform\</ParentImage>
         </Rule>
 
       </ProcessCreate>
