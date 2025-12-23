@@ -97,6 +97,36 @@
         <Image condition="image">wscript.exe</Image>
         <Image condition="image">cscript.exe</Image>
 
+        <!-- T1110 - Brute Force Detection -->
+        <Image condition="image">hydra.exe</Image>
+        <Image condition="image">medusa.exe</Image>
+        <Image condition="image">ncrack.exe</Image>
+        <CommandLine condition="contains">-P password</CommandLine>
+        <CommandLine condition="contains">--passwords</CommandLine>
+
+        <!-- T1078 - Valid Accounts Detection -->
+        <Image condition="image">runas.exe</Image>
+        <Image condition="image">cmdkey.exe</Image>
+        <CommandLine condition="contains">/user:</CommandLine>
+        <CommandLine condition="contains">/savecred</CommandLine>
+        <CommandLine condition="contains">-Credential</CommandLine>
+
+        <!-- T1098 - Account Manipulation Detection -->
+        <CommandLine condition="contains">net user /add</CommandLine>
+        <CommandLine condition="contains">net localgroup /add</CommandLine>
+        <CommandLine condition="contains">Add-LocalGroupMember</CommandLine>
+        <CommandLine condition="contains">New-LocalUser</CommandLine>
+
+        <!-- T1558 - Steal or Forge Kerberos Tickets -->
+        <Image condition="image">klist.exe</Image>
+        <Image condition="image">rubeus.exe</Image>
+        <CommandLine condition="contains">kerberos::</CommandLine>
+        <CommandLine condition="contains">asreproast</CommandLine>
+        <CommandLine condition="contains">kerberoast</CommandLine>
+        <CommandLine condition="contains">golden</CommandLine>
+        <CommandLine condition="contains">silver</CommandLine>
+        <CommandLine condition="contains">Invoke-Kerberoast</CommandLine>
+
         <!-- Discovery commands (unusual on SQL server) -->
         <Image condition="image">whoami.exe</Image>
         <Image condition="image">hostname.exe</Image>
