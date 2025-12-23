@@ -108,6 +108,32 @@
         <Image condition="image">query.exe</Image>
         <Image condition="image">netstat.exe</Image>
         <Image condition="image">nltest.exe</Image>
+        <!-- T1110 - Brute Force Detection -->
+        <Image condition="image">hydra.exe</Image>
+        <Image condition="image">medusa.exe</Image>
+        <CommandLine condition="contains">-P password</CommandLine>
+
+        <!-- T1078 - Valid Accounts Detection -->
+        <Image condition="image">runas.exe</Image>
+        <Image condition="image">cmdkey.exe</Image>
+        <CommandLine condition="contains">/user:</CommandLine>
+        <CommandLine condition="contains">/savecred</CommandLine>
+
+        <!-- T1098 - Account Manipulation Detection -->
+        <CommandLine condition="contains">net user /add</CommandLine>
+        <CommandLine condition="contains">net localgroup /add</CommandLine>
+        <CommandLine condition="contains">Add-LocalGroupMember</CommandLine>
+        <CommandLine condition="contains">New-LocalUser</CommandLine>
+
+        <!-- T1558 - Steal or Forge Kerberos Tickets -->
+        <Image condition="image">klist.exe</Image>
+        <Image condition="image">rubeus.exe</Image>
+        <CommandLine condition="contains">kerberos::</CommandLine>
+        <CommandLine condition="contains">kerberoast</CommandLine>
+        <CommandLine condition="contains">asreproast</CommandLine>
+        <CommandLine condition="contains">golden</CommandLine>
+        <CommandLine condition="contains">silver</CommandLine>
+
         <!-- T1087.001 specific - Local Account Discovery -->
         <CommandLine condition="contains">net user</CommandLine>
         <CommandLine condition="contains">net1 user</CommandLine>

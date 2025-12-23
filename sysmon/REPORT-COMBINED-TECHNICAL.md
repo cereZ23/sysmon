@@ -1,8 +1,9 @@
 # Technical Report: Combined Sysmon + Windows Events Detection Coverage
 
-**Date:** December 17, 2025
-**Version:** 2.0
+**Date:** December 23, 2025
+**Version:** 2.1
 **Scope:** MITRE ATT&CK Coverage Analysis with Windows Event Log Enhancement
+**Updates:** Added T1558 (Kerberos Attacks), T1110 (Brute Force) coverage with Windows Events 4768, 4769, 4771
 
 ---
 
@@ -123,6 +124,31 @@ C:\Temp\*, C:\Users\*\AppData\Local\Temp → T1074.001
 | **4672** | Security | Special Privileges Assigned | T1078.002 |
 | **4776** | Security | NTLM Authentication | T1550.002 |
 
+#### Category E2: Kerberos Events (CRITICAL - T1558)
+
+| Event ID | Log | Description | Techniques Covered |
+|----------|-----|-------------|-------------------|
+| **4768** | Security | Kerberos TGT Request | T1558.001 (Golden Ticket), T1558.004 (AS-REP Roasting) |
+| **4769** | Security | Kerberos Service Ticket Request | T1558.003 (Kerberoasting) |
+| **4770** | Security | Kerberos Ticket Renewed | T1558 |
+| **4771** | Security | Kerberos Pre-Auth Failed | T1110.003 (Password Spraying), T1558.004 |
+| **4773** | Security | Kerberos Service Ticket Failed | T1558.003 |
+
+**Detection Examples:**
+```
+Event 4769 (Kerberoasting):
+- Encryption Type: 0x17 (RC4-HMAC) = Weak encryption, suspicious
+- Service Name: SQL/*, HTTP/* = High-value targets
+
+Event 4768 (Golden Ticket):
+- Account Domain: Differs from client domain = Suspicious
+- Ticket Options: 0x40810010 = Forwardable + Renewable
+
+Event 4771 (AS-REP Roasting):
+- Failure Code: 0x18 (KDC_ERR_PREAUTH_FAILED)
+- Pre-Authentication Type: 0 = No pre-auth (vulnerable account)
+```
+
 #### Category F: Network Filtering (MEDIUM)
 
 | Event ID | Log | Description | Techniques Covered |
@@ -188,6 +214,12 @@ C:\Temp\*, C:\Users\*\AppData\Local\Temp → T1074.001
 | T1074.001 | Local Data Staging | ⚠️ | **4663** | ✅ | HIGH |
 | T1105 | Ingress Tool Transfer | ✅ | 5156 | ✅✅ | - |
 | T1071.001 | Web Protocols | ⚠️ | **5156,4104** | ✅ | MEDIUM |
+| **T1558** | **Steal/Forge Kerberos Tickets** | ✅ | **4768,4769,4771** | ✅✅ | **CRITICAL** |
+| T1558.001 | Golden Ticket | ✅ | 4768,4769 | ✅✅ | CRITICAL |
+| T1558.003 | Kerberoasting | ✅ | **4769** | ✅✅ | CRITICAL |
+| T1558.004 | AS-REP Roasting | ✅ | **4768,4771** | ✅✅ | CRITICAL |
+| **T1110** | **Brute Force** | ✅ | **4625,4771,4776** | ✅✅ | **CRITICAL** |
+| T1110.003 | Password Spraying | ✅ | 4625,4771 | ✅✅ | CRITICAL |
 
 **Legend:**
 - ✅ = Fully detected
@@ -603,18 +635,49 @@ THEN Alert: "Potential data exfiltration in progress"
 | 5156 | Security | WFP Connection | T1071.001, T1095 |
 | 7045 | System | Service Installed | T1543.003 |
 | 8222 | DS | NTDS Replication | T1003.003 |
+| **4768** | Security | Kerberos TGT Request | **T1558.001, T1558.004** |
+| **4769** | Security | Kerberos Service Ticket | **T1558.003** (Kerberoasting) |
+| **4770** | Security | Kerberos Ticket Renewed | T1558 |
+| **4771** | Security | Kerberos Pre-Auth Failed | **T1110.003, T1558.004** |
+| **4773** | Security | Kerberos Service Ticket Failed | T1558.003 |
 
-### B. GPO Template Export
+### B. Overlap Analysis (Duplicati Sysmon vs Windows Events)
+
+See `deploy/LOGGING-OVERLAP-ANALYSIS.md` for detailed analysis of:
+- Which events are duplicated between Sysmon and Windows Events
+- Recommendations for avoiding duplicate logging
+- Storage optimization strategies
+- SIEM correlation best practices
+
+**Key Findings:**
+| Scenario | Sysmon | Windows Events | Recommendation |
+|----------|--------|----------------|----------------|
+| Process Creation | Event 1 | Event 4688 | **Prefer Sysmon** (more context) |
+| Authentication | ❌ | 4624, 4625, 4672 | **Windows Only** |
+| Kerberos | Tool detection | 4768, 4769, 4771 | **Complementary** |
+| Account Management | cmdline | 4720-4738 | **Complementary** |
+| File Operations | Events 11, 23 | 4663 (with SACL) | **Prefer Sysmon** |
+| Registry | Events 12-14 | 4657 (with SACL) | **Prefer Sysmon** |
+
+### C. GPO Template Export
 
 See `windows-audit-policy.inf` for importable security template.
 
-### C. PowerShell Deployment Script
+### D. PowerShell Deployment Script
 
 See `Deploy-AuditPolicy.ps1` for automated deployment.
 
+### E. Deployment Scripts
+
+| Script | Purpose | Location |
+|--------|---------|----------|
+| `windows-audit-policy.ps1` | Configure Windows Audit Policy | `deploy/` |
+| `enable-powershell-logging.ps1` | Enable PowerShell Logging | `deploy/` |
+| `LOGGING-OVERLAP-ANALYSIS.md` | Duplicate/Overlap Analysis | `deploy/` |
+
 ---
 
-**Document Version:** 2.0
-**Last Updated:** December 17, 2025
+**Document Version:** 2.1
+**Last Updated:** December 23, 2025
 **Author:** Security Engineering Team
 **Review Cycle:** Quarterly

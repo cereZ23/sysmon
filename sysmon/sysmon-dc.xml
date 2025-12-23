@@ -61,6 +61,49 @@
         <Image condition="image">ping.exe</Image>
         <Image condition="image">nslookup.exe</Image>
 
+        <!-- T1110 - Brute Force Detection -->
+        <Image condition="image">hydra.exe</Image>
+        <Image condition="image">medusa.exe</Image>
+        <Image condition="image">ncrack.exe</Image>
+        <Image condition="image">crowbar.exe</Image>
+        <CommandLine condition="contains">-P password</CommandLine>
+        <CommandLine condition="contains">--passwords</CommandLine>
+
+        <!-- T1078 - Valid Accounts Detection -->
+        <Image condition="image">runas.exe</Image>
+        <Image condition="image">cmdkey.exe</Image>
+        <CommandLine condition="contains">/user:</CommandLine>
+        <CommandLine condition="contains">/savecred</CommandLine>
+        <CommandLine condition="contains">-Credential</CommandLine>
+        <CommandLine condition="contains">Get-Credential</CommandLine>
+
+        <!-- T1098 - Account Manipulation Detection -->
+        <CommandLine condition="contains">net user /add</CommandLine>
+        <CommandLine condition="contains">net localgroup /add</CommandLine>
+        <CommandLine condition="contains">net group /add</CommandLine>
+        <CommandLine condition="contains">Add-LocalGroupMember</CommandLine>
+        <CommandLine condition="contains">Add-ADGroupMember</CommandLine>
+        <CommandLine condition="contains">Set-ADUser</CommandLine>
+        <CommandLine condition="contains">Set-ADAccountPassword</CommandLine>
+        <CommandLine condition="contains">New-LocalUser</CommandLine>
+        <CommandLine condition="contains">New-ADUser</CommandLine>
+
+        <!-- T1558 - Steal or Forge Kerberos Tickets (CRITICAL on DC) -->
+        <Image condition="image">klist.exe</Image>
+        <Image condition="image">rubeus.exe</Image>
+        <CommandLine condition="contains">asreproast</CommandLine>
+        <CommandLine condition="contains">kerberoast</CommandLine>
+        <CommandLine condition="contains">golden</CommandLine>
+        <CommandLine condition="contains">silver</CommandLine>
+        <CommandLine condition="contains">tgtdeleg</CommandLine>
+        <CommandLine condition="contains">ptt</CommandLine>
+        <CommandLine condition="contains">kirbi</CommandLine>
+        <CommandLine condition="contains">Invoke-Kerberoast</CommandLine>
+        <CommandLine condition="contains">Get-DomainSPNTicket</CommandLine>
+        <CommandLine condition="contains">Request-SPNTicket</CommandLine>
+        <CommandLine condition="contains">Get-Keylistkey</CommandLine>
+        <CommandLine condition="contains">Get-KerberosAESKey</CommandLine>
+
         <!-- User/Group enumeration -->
         <CommandLine condition="contains">net user</CommandLine>
         <CommandLine condition="contains">net group</CommandLine>
