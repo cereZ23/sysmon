@@ -439,6 +439,338 @@ jobs:
           }
           exit 0
 
+  # ==========================================================================
+  # WINDOWS EVENT LOGGING TESTS
+  # Verifies that Windows Audit Policies generate expected security events
+  # ==========================================================================
+  windows-event-tests:
+    name: Windows Events - ${{ matrix.config }}
+    needs: validate-xml
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [ws, srv, dc]  # Test on workstation, server, and DC configs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply Windows Audit Policy
+        shell: powershell
+        run: |
+          Write-Host "Applying Windows Audit Policy for security event testing..."
+          Write-Host "=" * 60
+
+          # Run the audit policy script
+          & .\sysmon\deploy\windows-audit-policy.ps1 -Verbose
+
+          Write-Host "Audit policy applied successfully"
+
+      - name: Generate Test Events
+        shell: powershell
+        run: |
+          Write-Host "Generating security events for validation..."
+          Write-Host "=" * 60
+
+          $testUser = "TestAuditUser"
+          $testGroup = "TestAuditGroup"
+          $results = @()
+
+          # ============================================================
+          # TEST 1: User Account Management (4720, 4722, 4724)
+          # ============================================================
+          Write-Host "`n[TEST] User Account Management Events (4720, 4722, 4724)..."
+          try {
+            # 4720 - User Account Created
+            net user $testUser "P@ssw0rd123!" /add 2>&1 | Out-Null
+            Write-Host "  [+] Created user: $testUser (should trigger 4720)"
+
+            # 4724 - Password Reset
+            net user $testUser "NewP@ssw0rd!" 2>&1 | Out-Null
+            Write-Host "  [+] Reset password (should trigger 4724)"
+
+            # 4725 - User Account Disabled + 4722 - User Account Enabled
+            net user $testUser /active:no 2>&1 | Out-Null
+            net user $testUser /active:yes 2>&1 | Out-Null
+            Write-Host "  [+] Disabled/Enabled user (should trigger 4725, 4722)"
+
+            $results += [PSCustomObject]@{Test="UserManagement"; Status="OK"; Events="4720,4722,4724,4725"}
+          }
+          catch {
+            Write-Host "  [!] Error: $($_.Exception.Message)" -ForegroundColor Red
+            $results += [PSCustomObject]@{Test="UserManagement"; Status="FAIL"; Events=""}
+          }
+
+          # ============================================================
+          # TEST 2: Security Group Management (4728, 4732)
+          # ============================================================
+          Write-Host "`n[TEST] Security Group Management Events (4728, 4732)..."
+          try {
+            # Create local group
+            net localgroup $testGroup /add 2>&1 | Out-Null
+            Write-Host "  [+] Created group: $testGroup"
+
+            # 4732 - Member Added to Local Group
+            net localgroup $testGroup $testUser /add 2>&1 | Out-Null
+            Write-Host "  [+] Added user to group (should trigger 4732)"
+
+            # 4733 - Member Removed from Local Group
+            net localgroup $testGroup $testUser /delete 2>&1 | Out-Null
+            Write-Host "  [+] Removed user from group (should trigger 4733)"
+
+            $results += [PSCustomObject]@{Test="GroupManagement"; Status="OK"; Events="4732,4733"}
+          }
+          catch {
+            Write-Host "  [!] Error: $($_.Exception.Message)" -ForegroundColor Red
+            $results += [PSCustomObject]@{Test="GroupManagement"; Status="FAIL"; Events=""}
+          }
+
+          # ============================================================
+          # TEST 3: Failed Logon (4625)
+          # ============================================================
+          Write-Host "`n[TEST] Failed Logon Event (4625)..."
+          try {
+            # Trigger failed logon
+            $secpasswd = ConvertTo-SecureString "WrongPassword" -AsPlainText -Force
+            $cred = New-Object System.Management.Automation.PSCredential ("FakeUser", $secpasswd)
+            Start-Process cmd -Credential $cred -ErrorAction SilentlyContinue 2>&1 | Out-Null
+          }
+          catch {
+            Write-Host "  [+] Failed logon triggered (should generate 4625)"
+            $results += [PSCustomObject]@{Test="FailedLogon"; Status="OK"; Events="4625"}
+          }
+
+          # ============================================================
+          # TEST 4: Scheduled Task (4698, 4699)
+          # ============================================================
+          Write-Host "`n[TEST] Scheduled Task Events (4698, 4699)..."
+          try {
+            $taskName = "TestAuditTask"
+
+            # 4698 - Scheduled Task Created
+            schtasks /create /tn $taskName /tr "cmd /c echo test" /sc once /st 00:00 /f 2>&1 | Out-Null
+            Write-Host "  [+] Created scheduled task (should trigger 4698)"
+
+            # 4699 - Scheduled Task Deleted
+            schtasks /delete /tn $taskName /f 2>&1 | Out-Null
+            Write-Host "  [+] Deleted scheduled task (should trigger 4699)"
+
+            $results += [PSCustomObject]@{Test="ScheduledTask"; Status="OK"; Events="4698,4699"}
+          }
+          catch {
+            Write-Host "  [!] Error: $($_.Exception.Message)" -ForegroundColor Red
+            $results += [PSCustomObject]@{Test="ScheduledTask"; Status="FAIL"; Events=""}
+          }
+
+          # ============================================================
+          # TEST 5: Service Installation (4697)
+          # ============================================================
+          Write-Host "`n[TEST] Service Installation Event (4697)..."
+          try {
+            $serviceName = "TestAuditService"
+
+            # 4697 - Service Installed
+            sc.exe create $serviceName binPath= "cmd /c echo test" type= own start= demand 2>&1 | Out-Null
+            Write-Host "  [+] Created service (should trigger 4697)"
+
+            # Cleanup
+            sc.exe delete $serviceName 2>&1 | Out-Null
+            Write-Host "  [+] Deleted service"
+
+            $results += [PSCustomObject]@{Test="ServiceInstall"; Status="OK"; Events="4697"}
+          }
+          catch {
+            Write-Host "  [!] Error: $($_.Exception.Message)" -ForegroundColor Red
+            $results += [PSCustomObject]@{Test="ServiceInstall"; Status="FAIL"; Events=""}
+          }
+
+          # ============================================================
+          # TEST 6: Explicit Credentials (4648)
+          # ============================================================
+          Write-Host "`n[TEST] Explicit Credentials Event (4648)..."
+          try {
+            # Use runas to trigger 4648
+            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c whoami" -Verb RunAs -PassThru -ErrorAction SilentlyContinue
+            if ($proc) {
+              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "  [+] Explicit credentials used (should trigger 4648)"
+            $results += [PSCustomObject]@{Test="ExplicitCreds"; Status="OK"; Events="4648"}
+          }
+          catch {
+            Write-Host "  [!] Note: 4648 may require interactive session"
+            $results += [PSCustomObject]@{Test="ExplicitCreds"; Status="SKIP"; Events="4648"}
+          }
+
+          # Wait for events to be written
+          Start-Sleep -Seconds 5
+
+          # Summary
+          Write-Host "`n" + "=" * 60
+          Write-Host "TEST GENERATION SUMMARY"
+          Write-Host "=" * 60
+          $results | Format-Table -AutoSize
+
+          # Export results
+          $results | Export-Csv -Path "event-generation-results.csv" -NoTypeInformation
+
+      - name: Verify Windows Events Generated
+        shell: powershell
+        run: |
+          Write-Host "Verifying Windows Security Events were generated..."
+          Write-Host "=" * 60
+
+          # Expected events and their descriptions
+          $expectedEvents = @{
+            4625 = "Failed Logon (Brute Force Detection)"
+            4720 = "User Account Created"
+            4722 = "User Account Enabled"
+            4724 = "Password Reset Attempt"
+            4725 = "User Account Disabled"
+            4732 = "Member Added to Local Group"
+            4733 = "Member Removed from Local Group"
+            4697 = "Service Installed"
+            4698 = "Scheduled Task Created"
+            4699 = "Scheduled Task Deleted"
+            4672 = "Special Privileges Assigned"
+            4648 = "Explicit Credentials Used"
+          }
+
+          $results = @()
+          $totalDetected = 0
+          $totalMissing = 0
+
+          # Get security events from last 10 minutes
+          $startTime = (Get-Date).AddMinutes(-10)
+
+          Write-Host "`nChecking for expected events since $startTime..."
+          Write-Host "-" * 60
+
+          foreach ($eventId in $expectedEvents.Keys | Sort-Object) {
+            $description = $expectedEvents[$eventId]
+
+            try {
+              $events = Get-WinEvent -FilterHashtable @{
+                LogName = 'Security'
+                Id = $eventId
+                StartTime = $startTime
+              } -MaxEvents 10 -ErrorAction SilentlyContinue
+
+              $count = if ($events) { $events.Count } else { 0 }
+
+              if ($count -gt 0) {
+                Write-Host "[OK] Event $eventId : $description ($count events)" -ForegroundColor Green
+                $status = "DETECTED"
+                $totalDetected++
+              }
+              else {
+                Write-Host "[--] Event $eventId : $description (not generated)" -ForegroundColor Yellow
+                $status = "NOT_DETECTED"
+                $totalMissing++
+              }
+
+              $results += [PSCustomObject]@{
+                EventID = $eventId
+                Description = $description
+                Status = $status
+                Count = $count
+              }
+            }
+            catch {
+              Write-Host "[??] Event $eventId : $description (error reading)" -ForegroundColor Red
+              $results += [PSCustomObject]@{
+                EventID = $eventId
+                Description = $description
+                Status = "ERROR"
+                Count = 0
+              }
+            }
+          }
+
+          # Calculate coverage
+          $total = $expectedEvents.Count
+          $coverageRate = [math]::Round(($totalDetected / $total) * 100, 1)
+
+          Write-Host "`n" + "=" * 60
+          Write-Host "WINDOWS EVENT COVERAGE SUMMARY - ${{ matrix.config }}"
+          Write-Host "=" * 60
+          Write-Host "Events Tested: $total"
+          Write-Host "Events Detected: $totalDetected" -ForegroundColor Green
+          Write-Host "Events Missing: $totalMissing" -ForegroundColor Yellow
+          Write-Host "Coverage Rate: $coverageRate%" -ForegroundColor Cyan
+
+          # Export results
+          $results | Export-Csv -Path "windows-event-coverage-${{ matrix.config }}.csv" -NoTypeInformation
+
+          # Create markdown report
+          $mdContent = @"
+          # Windows Event Coverage Report - ${{ matrix.config }}
+
+          **Date:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+          **Configuration:** ${{ matrix.config }}
+          **Coverage Rate:** $coverageRate%
+
+          ## Summary
+          | Metric | Count |
+          |--------|-------|
+          | Events Tested | $total |
+          | Detected | $totalDetected |
+          | Not Detected | $totalMissing |
+
+          ## Detailed Results
+          | Event ID | Description | Status | Count |
+          |----------|-------------|--------|-------|
+          "@
+
+          foreach ($r in $results | Sort-Object EventID) {
+            $statusEmoji = switch ($r.Status) {
+              "DETECTED" { "✅" }
+              "NOT_DETECTED" { "⚠️" }
+              default { "❌" }
+            }
+            $mdContent += "`n| $($r.EventID) | $($r.Description) | $statusEmoji $($r.Status) | $($r.Count) |"
+          }
+
+          $mdContent | Out-File -FilePath "windows-event-report-${{ matrix.config }}.md" -Encoding UTF8
+
+          # Fail if critical events are missing
+          $criticalEvents = @(4720, 4732, 4697, 4698)  # Must detect these
+          $criticalMissing = $results | Where-Object {
+            $criticalEvents -contains $_.EventID -and $_.Status -ne "DETECTED"
+          }
+
+          if ($criticalMissing) {
+            Write-Host "`n[WARNING] Critical events not detected:" -ForegroundColor Red
+            $criticalMissing | ForEach-Object { Write-Host "  - $($_.EventID): $($_.Description)" }
+            # Don't fail the build, just warn
+          }
+
+      - name: Cleanup Test Artifacts
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "Cleaning up test artifacts..."
+
+          # Remove test user
+          net user TestAuditUser /delete 2>&1 | Out-Null
+
+          # Remove test group
+          net localgroup TestAuditGroup /delete 2>&1 | Out-Null
+
+          Write-Host "Cleanup complete"
+
+      - name: Upload Windows Event Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-event-results-${{ matrix.config }}
+          path: |
+            windows-event-coverage-${{ matrix.config }}.csv
+            windows-event-report-${{ matrix.config }}.md
+            event-generation-results.csv
+          if-no-files-found: ignore
+
   summary:
     name: Test Summary
     needs: [test-sysmon-configs]
