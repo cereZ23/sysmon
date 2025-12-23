@@ -21,8 +21,17 @@
 .PARAMETER WhatIf
     Shows what would be changed without making actual changes.
 
+.PARAMETER SysmonInstalled
+    Skip Process Creation/Termination policies if Sysmon is installed.
+    Sysmon Event 1/5 are superior to Windows Event 4688/4689.
+    Default: $false
+
 .EXAMPLE
     .\windows-audit-policy.ps1
+
+.EXAMPLE
+    .\windows-audit-policy.ps1 -SysmonInstalled
+    # Skips Process Creation/Termination (Sysmon provides better coverage)
 
 .EXAMPLE
     .\windows-audit-policy.ps1 -LogPath "D:\Logs\AuditPolicy" -Verbose
@@ -52,7 +61,10 @@ param(
     [bool]$BackupExisting = $true,
 
     [Parameter()]
-    [switch]$RestoreDefaults
+    [switch]$RestoreDefaults,
+
+    [Parameter()]
+    [switch]$SysmonInstalled  # Skip Process Creation/Termination if Sysmon is active (avoids duplicates)
 )
 
 #Requires -RunAsAdministrator
@@ -78,8 +90,9 @@ $ErrorActionPreference = "Stop"
 #   | 4732     | User Added to Local Admin    | 🔴 CRITICO | Security Group Management        |
 #   | 4672     | Special Privileges Assigned  | 🟠 ALTO    | Special Logon                    |
 #   | 4648     | Explicit Credentials Used    | 🟠 ALTO    | Logon                            |
-#   | 4688     | Process Creation             | 🟠 ALTO    | Process Creation                 |
-#   | 4689     | Process Termination          | 🟢 MEDIO   | Process Termination              |
+#   | 4688     | Process Creation             | ⚠️ SKIP*   | Process Creation                 |
+#   | 4689     | Process Termination          | ⚠️ SKIP*   | Process Termination              |
+#   * SKIP if Sysmon installed: Sysmon Event 1/5 are SUPERIOR (include hash, parent process)
 #   | 4697     | Service Installed            | 🔴 CRITICO | Security System Extension        |
 #   | 4698     | Scheduled Task Created       | 🔴 CRITICO | Object Access (Other)            |
 #   | 4768     | Kerberos TGT Request         | 🟠 ALTO    | Kerberos Authentication Service  |
@@ -186,17 +199,25 @@ $Script:AuditPolicies = @{
         Description = "Tracks Plug and Play device events for USB monitoring."
         MITRE = "T1052.001"
     }
+    # ⚠️ OVERLAP WARNING: If Sysmon is installed, these are DUPLICATES
+    # Sysmon Event 1 (ProcessCreate) is SUPERIOR to Windows Event 4688:
+    #   - Includes file hash (SHA256)
+    #   - Includes parent process details
+    #   - Includes full command line by default
+    # Use -SysmonInstalled parameter to skip these policies
     "Process Creation" = @{
         Success = $true
         Failure = $false
-        Description = "CRITICAL: Tracks all process creation. Foundation of endpoint detection."
+        Description = "Tracks process creation. SKIP if Sysmon installed (Event 1 is superior)."
         MITRE = "T1059, T1204"
+        SkipIfSysmon = $true  # Flag for conditional application
     }
     "Process Termination" = @{
         Success = $true
         Failure = $false
-        Description = "Tracks process termination for defense evasion detection."
+        Description = "Tracks process termination. SKIP if Sysmon installed (Event 5 is superior)."
         MITRE = "T1562.001"
+        SkipIfSysmon = $true  # Flag for conditional application
     }
     "RPC Events" = @{
         Success = $true
@@ -789,6 +810,13 @@ function Main {
         # Skip DS Access on non-DCs
         if ($subcategory -match "Directory Service" -and -not $isDomainController) {
             Write-Log "Skipping '$subcategory' (not a Domain Controller)" -Level Info
+            continue
+        }
+
+        # Skip Process Creation/Termination if Sysmon is installed (avoids duplicates)
+        # Sysmon Event 1/5 are superior to Windows Event 4688/4689
+        if ($SysmonInstalled -and $config.ContainsKey('SkipIfSysmon') -and $config.SkipIfSysmon) {
+            Write-Log "Skipping '$subcategory' (Sysmon installed - use Sysmon Event instead)" -Level Info
             continue
         }
 
