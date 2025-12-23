@@ -12,6 +12,331 @@ Questo documento fornisce esempi di **raw event data** per ogni evento di sicure
 
 ---
 
+## CI Detection Results - Raw Output
+
+Output completo dal test CI del 23/12/2025 22:31 UTC:
+
+```
+[OK] Event 4625 : Failed Logon (Brute Force Detection) (1 events)
+    --- RAW EVENT DATA (Event 4625) ---
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: runnervm2nm03\FakeUser
+    LogonType: 2
+    Status: 0xc000006d
+    IpAddress: ::1
+
+[--] Event 4648 : Explicit Credentials Used (not generated)
+
+[OK] Event 4672 : Special Privileges Assigned (10 events)
+    --- RAW EVENT DATA (Event 4672) ---
+    TimeCreated: 12/23/2025 22:31:57
+    SubjectUserName: SYSTEM
+    Privileges: SeAssignPrimaryTokenPrivilege, SeTcbPrivilege, SeSecurityPrivilege,
+                SeTakeOwnershipPrivilege, SeLoadDriverPrivilege, SeBackupPrivilege,
+                SeRestorePrivilege, SeDebugPrivilege, SeAuditPrivilege,
+                SeSystemEnvironmentPrivilege, SeImpersonatePrivilege,
+                SeDelegateSessionUserImpersonatePrivilege
+
+[OK] Event 4697 : Service Installed (1 events)
+    --- RAW EVENT DATA (Event 4697) ---
+    TimeCreated: 12/23/2025 22:31:57
+    ServiceName: TestAuditService
+    ServiceFileName: cmd /c echo test
+    ServiceType: 0x10
+    InstalledBy: runneradmin
+
+[--] Event 4698 : Scheduled Task Created (not generated)
+[--] Event 4699 : Scheduled Task Deleted (not generated)
+
+[OK] Event 4720 : User Account Created (1 events)
+    --- RAW EVENT DATA (Event 4720) ---
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: runnervm2nm03\TestAuditUser
+    CreatedBy: runneradmin
+
+[OK] Event 4722 : User Account Enabled (2 events)
+    --- RAW EVENT DATA (Event 4722) ---
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    EnabledBy: runneradmin
+
+[OK] Event 4724 : Password Reset Attempt (2 events)
+    --- RAW EVENT DATA (Event 4724) ---
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    ResetBy: runneradmin
+
+[OK] Event 4725 : User Account Disabled (1 events)
+    --- RAW EVENT DATA (Event 4725) ---
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    DisabledBy: runneradmin
+
+[OK] Event 4732 : Member Added to Local Group (2 events)
+    --- RAW EVENT DATA (Event 4732) ---
+    TimeCreated: 12/23/2025 22:31:57
+    MemberAdded: - (S-1-5-21-3550560537-2316997767-675138211-1003)
+    TargetGroup: TestAuditGroup
+    AddedBy: runneradmin
+
+[OK] Event 4733 : Member Removed from Local Group (1 events)
+    --- RAW EVENT DATA (Event 4733) ---
+    TimeCreated: 12/23/2025 22:31:57
+    MemberRemoved: -
+    TargetGroup: TestAuditGroup
+    RemovedBy: runneradmin
+
+[OK] Event 4103 : PowerShell Module Logging (10 events)
+    --- RAW EVENT DATA (Event 4103) ---
+    TimeCreated: 12/23/2025 22:32:11
+    Payload (first 5 lines):
+      CommandInvocation(Write-Host): "Write-Host"
+      ParameterBinding(Write-Host): name="Object"; value="[OK] Event 4733..."
+
+[OK] Event 4104 : PowerShell Script Block Logging (10 events)
+    --- RAW EVENT DATA (Event 4104) ---
+    TimeCreated: 12/23/2025 22:32:11
+    ScriptBlockId: 0c5cf663-8964-4938-86a7-8f4a43535913
+    ScriptBlockText (preview): { $_.Name -eq 'Payload' }...
+
+============================================================
+WINDOWS EVENT COVERAGE SUMMARY - dc
+============================================================
+Events Tested: 14
+Events Detected: 11
+Events Missing: 3
+Coverage Rate: 78.6%
+```
+
+### Detection Summary Table
+
+| Event ID | Descrizione | Status | Count |
+|----------|-------------|--------|-------|
+| 4625 | Failed Logon (Brute Force) | ✅ DETECTED | 1 |
+| 4648 | Explicit Credentials | ⚠️ NOT GENERATED | 0 |
+| 4672 | Special Privileges | ✅ DETECTED | 10 |
+| 4697 | Service Installed | ✅ DETECTED | 1 |
+| 4698 | Scheduled Task Created | ⚠️ NOT GENERATED | 0 |
+| 4699 | Scheduled Task Deleted | ⚠️ NOT GENERATED | 0 |
+| 4720 | User Account Created | ✅ DETECTED | 1 |
+| 4722 | User Account Enabled | ✅ DETECTED | 2 |
+| 4724 | Password Reset | ✅ DETECTED | 2 |
+| 4725 | User Account Disabled | ✅ DETECTED | 1 |
+| 4732 | Member Added to Group | ✅ DETECTED | 2 |
+| 4733 | Member Removed from Group | ✅ DETECTED | 1 |
+| 4103 | PowerShell Module Logging | ✅ DETECTED | 10 |
+| 4104 | PowerShell Script Block | ✅ DETECTED | 10 |
+
+---
+
+## Azione → Log (Attack Simulation Results)
+
+### 1. Brute Force Attack (Event 4625)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Tentativo di logon con credenziali errate
+$cred = New-Object PSCredential ("FakeUser", (ConvertTo-SecureString "WrongPassword" -AsPlainText -Force))
+Start-Process cmd -Credential $cred -ErrorAction SilentlyContinue
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4625 : Failed Logon (Brute Force Detection) (1 events)
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: runnervm2nm03\FakeUser
+    LogonType: 2
+    Status: 0xc000006d
+    IpAddress: ::1
+```
+
+---
+
+### 2. User Account Creation (Event 4720)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Creazione account locale (persistence)
+net user TestAuditUser "P@ssw0rd123!" /add
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4720 : User Account Created (1 events)
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: runnervm2nm03\TestAuditUser
+    CreatedBy: runneradmin
+```
+
+---
+
+### 3. Password Reset (Event 4724)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Reset password (credential manipulation)
+net user TestAuditUser "NewP@ssw0rd!"
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4724 : Password Reset Attempt (2 events)
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    ResetBy: runneradmin
+```
+
+---
+
+### 4. Account Enable/Disable (Events 4722, 4725)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Disabilita e riabilita account
+net user TestAuditUser /active:no
+net user TestAuditUser /active:yes
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4725 : User Account Disabled (1 events)
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    DisabledBy: runneradmin
+
+[OK] Event 4722 : User Account Enabled (2 events)
+    TimeCreated: 12/23/2025 22:31:57
+    TargetUserName: TestAuditUser
+    EnabledBy: runneradmin
+```
+
+---
+
+### 5. Group Membership Manipulation (Events 4732, 4733)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Aggiungi utente a gruppo (privilege escalation)
+net localgroup TestAuditGroup /add
+net localgroup TestAuditGroup TestAuditUser /add
+net localgroup TestAuditGroup TestAuditUser /delete
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4732 : Member Added to Local Group (2 events)
+    TimeCreated: 12/23/2025 22:31:57
+    MemberAdded: - (S-1-5-21-3550560537-2316997767-675138211-1003)
+    TargetGroup: TestAuditGroup
+    AddedBy: runneradmin
+
+[OK] Event 4733 : Member Removed from Local Group (1 events)
+    TimeCreated: 12/23/2025 22:31:57
+    MemberRemoved: -
+    TargetGroup: TestAuditGroup
+    RemovedBy: runneradmin
+```
+
+---
+
+### 6. Malicious Service Installation (Event 4697)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Installazione servizio malevolo (persistence)
+sc.exe create TestAuditService binPath= "cmd /c echo test" type= own start= demand
+sc.exe delete TestAuditService
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4697 : Service Installed (1 events)
+    TimeCreated: 12/23/2025 22:31:57
+    ServiceName: TestAuditService
+    ServiceFileName: cmd /c echo test
+    ServiceType: 0x10
+    InstalledBy: runneradmin
+```
+
+---
+
+### 7. Privilege Escalation Detection (Event 4672)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Logon con privilegi elevati (automatico per SYSTEM)
+# Generato automaticamente durante operazioni admin
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4672 : Special Privileges Assigned (10 events)
+    TimeCreated: 12/23/2025 22:31:57
+    SubjectUserName: SYSTEM
+    Privileges: SeAssignPrimaryTokenPrivilege, SeTcbPrivilege, SeSecurityPrivilege,
+                SeTakeOwnershipPrivilege, SeLoadDriverPrivilege, SeBackupPrivilege,
+                SeRestorePrivilege, SeDebugPrivilege, SeAuditPrivilege,
+                SeSystemEnvironmentPrivilege, SeImpersonatePrivilege,
+                SeDelegateSessionUserImpersonatePrivilege
+```
+
+---
+
+### 8. PowerShell Attack Execution (Events 4103, 4104)
+
+**AZIONE ESEGUITA:**
+```powershell
+# Script Block Logging - esecuzione script
+$testScript = {
+    $env:COMPUTERNAME
+    Get-Process | Select-Object -First 1
+}
+& $testScript
+
+# Encoded Command (tecnica evasion comune)
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("Get-Date"))
+powershell -EncodedCommand $encoded
+
+# Module Logging
+Import-Module Microsoft.PowerShell.Management -Force
+Get-ChildItem C:\ | Select-Object -First 1
+```
+
+**LOG GENERATO:**
+```
+[OK] Event 4104 : PowerShell Script Block Logging (10 events)
+    TimeCreated: 12/23/2025 22:32:11
+    ScriptBlockId: 0c5cf663-8964-4938-86a7-8f4a43535913
+    ScriptBlockText (preview): { $_.Name -eq 'Payload' }...
+
+[OK] Event 4103 : PowerShell Module Logging (10 events)
+    TimeCreated: 12/23/2025 22:32:11
+    Payload (first 5 lines):
+      CommandInvocation(Write-Host): "Write-Host"
+      ParameterBinding(Write-Host): name="Object"; value="[OK] Event 4733..."
+```
+
+---
+
+### 9. Scheduled Task (Events 4698, 4699) - NOT GENERATED
+
+**AZIONE ESEGUITA:**
+```powershell
+# Scheduled Task per persistence
+schtasks /create /tn TestAuditTask /tr "cmd /c echo test" /sc once /st 00:00 /f
+schtasks /delete /tn TestAuditTask /f
+```
+
+**LOG GENERATO:**
+```
+[--] Event 4698 : Scheduled Task Created (not generated)
+[--] Event 4699 : Scheduled Task Deleted (not generated)
+
+NOTA: Eventi non generati per limitazioni ambiente CI (timing issue con /st 00:00)
+```
+
+---
+
 ## Security Events
 
 ### Event 4625 - Failed Logon (Brute Force Detection)
