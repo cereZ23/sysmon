@@ -75,6 +75,51 @@ This repository contains hardened Sysmon configurations designed for enterprise 
 sysmon.exe -accepteula -i sysmon-ws.xml
 ```
 
+## Windows Audit Policy & Logging
+
+### Deploy Scripts
+
+| Script | Description |
+|--------|-------------|
+| `sysmon/deploy/windows-audit-policy.ps1` | Configure Windows Advanced Audit Policy |
+| `sysmon/deploy/enable-powershell-logging.ps1` | Enable PowerShell Script Block & Module Logging |
+
+### Windows Audit Policy (v2.1.0)
+
+Configures 55+ Windows audit subcategories for comprehensive security event logging.
+
+```powershell
+# Download and run (requires Administrator)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/cereZ23/sysmon/main/sysmon/deploy/windows-audit-policy.ps1" -OutFile "windows-audit-policy.ps1"
+powershell.exe -ExecutionPolicy Bypass -File .\windows-audit-policy.ps1
+```
+
+**Features:**
+- ✅ **Multi-Language Support** - Works on ALL Windows languages (English, Italian, German, French, Spanish, etc.)
+- ✅ Uses language-independent GUIDs instead of localized subcategory names
+- ✅ MITRE ATT&CK aligned detection coverage
+- ✅ Automatic backup before changes
+- ✅ Event log size optimization
+
+**Key Events Enabled:**
+
+| Event ID | Description | MITRE ATT&CK |
+|----------|-------------|--------------|
+| 4625 | Failed Logon | T1110 Brute Force |
+| 4720 | User Account Created | T1136 Create Account |
+| 4732 | Member Added to Group | T1098 Account Manipulation |
+| 4697 | Service Installed | T1543.003 Windows Service |
+| 4698 | Scheduled Task Created | T1053.005 Scheduled Task |
+| 4672 | Special Privileges | T1134 Token Manipulation |
+
+### PowerShell Logging
+
+Enables Script Block Logging (4104) and Module Logging (4103) for PowerShell attack detection.
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\sysmon\deploy\enable-powershell-logging.ps1
+```
+
 ### Update Configuration
 ```powershell
 sysmon.exe -c sysmon-ws.xml

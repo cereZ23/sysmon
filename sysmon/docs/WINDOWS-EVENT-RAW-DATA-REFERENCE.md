@@ -1,7 +1,7 @@
 # Windows Security Event - Raw Data Reference
 
-**Versione:** 1.0
-**Data:** 23 Dicembre 2025
+**Versione:** 1.1
+**Data:** 29 Dicembre 2025
 **Target:** Security Analysts, SOC Teams, Incident Responders
 
 ---
@@ -9,6 +9,29 @@
 ## Panoramica
 
 Questo documento fornisce esempi di **raw event data** per ogni evento di sicurezza Windows monitorato dalla configurazione Sysmon. I dati sono estratti da test automatizzati CI/CD che simulano attacchi reali.
+
+---
+
+## Script di Configurazione
+
+### windows-audit-policy.ps1 (v2.1.0)
+
+Lo script che abilita questi eventi supporta **tutte le lingue Windows** grazie all'uso di GUID invece dei nomi localizzati.
+
+```powershell
+# Download e installazione
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/cereZ23/sysmon/main/sysmon/deploy/windows-audit-policy.ps1" -OutFile "windows-audit-policy.ps1"
+powershell.exe -ExecutionPolicy Bypass -File .\windows-audit-policy.ps1
+```
+
+**Lingue Testate in CI:**
+- Italiano (it-IT)
+- English (en-US)
+- Deutsch (de-DE)
+- Francais (fr-FR)
+- Espanol (es-ES)
+
+Vedi [Deploy README](../deploy/README.md) per dettagli completi.
 
 ---
 
@@ -759,7 +782,19 @@ index=wineventlog EventCode=4104 LogName="Microsoft-Windows-PowerShell/Operation
 
 ---
 
-**Documento Version:** 1.0
+**Documento Version:** 1.1
 **Autore:** Security Engineering Team
 **Classificazione:** INTERNO
+**Ultimo Aggiornamento:** Dicembre 2025
 **Prossima Revisione:** Marzo 2026
+
+---
+
+## Changelog
+
+### v1.1 (29 Dicembre 2025)
+- Aggiunto riferimento allo script windows-audit-policy.ps1 v2.1.0
+- Documentato supporto multi-lingua (IT, DE, FR, ES)
+
+### v1.0 (23 Dicembre 2025)
+- Versione iniziale con raw event data da CI/CD
